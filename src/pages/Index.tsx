@@ -96,7 +96,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 relative">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse"></div>
@@ -106,11 +106,11 @@ const Index = () => {
 
       <Navbar />
 
-      <div className="container mx-auto px-4 pt-24 pb-6 h-screen flex flex-col">
+      <div className="container mx-auto px-4 pt-32 pb-32">
         {messages.length === 0 ? (
           <WelcomeSection onStartChat={() => document.getElementById('chat-input')?.focus()} />
         ) : (
-          <div className="flex-1 overflow-y-auto mb-6 space-y-4 pr-2 scrollbar-thin scrollbar-thumb-purple-200 scrollbar-track-transparent">
+          <div className="max-w-4xl mx-auto space-y-4 mb-32">
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
@@ -130,8 +130,10 @@ const Index = () => {
             )}
           </div>
         )}
+      </div>
 
-        {/* Chat Input */}
+      {/* Floating Chat Input */}
+      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 w-full max-w-4xl px-6">
         <div className="bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl p-4 shadow-2xl">
           <div className="flex items-center space-x-3">
             <input

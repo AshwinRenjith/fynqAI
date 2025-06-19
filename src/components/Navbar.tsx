@@ -1,11 +1,36 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Menu, Settings, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const Navbar = () => {
+  const [isVisible, setIsVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY < lastScrollY || currentScrollY < 10) {
+        // Scrolling up or at the top
+        setIsVisible(true);
+      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // Scrolling down and past threshold
+        setIsVisible(false);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
+
   return (
-    <nav className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-4xl px-6">
+    <nav className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-4xl px-6 transition-all duration-300 ${
+      isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+    }`}>
       <div className="bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl px-6 py-4 shadow-2xl">
         <div className="flex items-center justify-between">
           {/* Logo */}
