@@ -1,0 +1,224 @@
+## Backend Documentation: fynq AI Tutor Platform
+
+### 1. Introduction
+
+This document outlines the design, architecture, and implementation details for the fynq AI Tutor Platform's backend. The primary goal is to create a robust, scalable, and secure Python-based backend that serves as a powerful Gemini Wrapper, facilitating intelligent tutoring functionalities, handling user interactions, and managing data.
+
+### 2. Backend Design Principles
+
+To ensure a high-quality and maintainable backend, the following design principles will be adhered to:
+
+*   **Modularity**: Components will be designed to be independent and loosely coupled, allowing for easier development, testing, and maintenance.
+*   **Scalability**: The architecture will support horizontal scaling to handle increasing user loads and data volumes.
+*   **Security**: All interactions will be secured, and sensitive data will be protected through appropriate encryption and access control mechanisms.
+*   **Reliability**: The system will be designed to be resilient to failures, with error handling, logging, and monitoring in place.
+*   **Performance**: Optimizations will be considered at every layer to ensure low latency and high throughput.
+*   **Extensibility**: The design will allow for easy integration of new features, AI models, and third-party services.
+
+### 3. Backend Architecture
+
+The backend will follow a microservices-oriented or layered architecture, depending on the complexity and future growth projections. For an initial robust setup, a layered approach with clear separation of concerns is recommended.
+
+#### 3.1. High-Level Architecture
+
+```mermaid
+graph TD
+    A[Frontend (fynq UI)] --> B(API Gateway / Load Balancer)
+    B --> C[Authentication Service]
+    B --> D[Gemini Wrapper Service]
+    B --> E[User Management Service]
+    B --> F[Content Management Service]
+    B --> G[File Storage Service]
+    C --> H[Supabase (Auth, Database)]
+    D --> I[Google Gemini API]
+    E --> H
+    F --> H
+    G --> K[Supabase Storage]
+    D --> K
+```
+
+#### 3.2. Architectural Layers
+
+1.  **API Gateway / Load Balancer**: Entry point for all client requests, handling routing, load balancing, and potentially initial authentication/rate limiting.
+2.  **Authentication Service**: Manages user registration, login, session management, and token validation.
+3.  **Gemini Wrapper Service**: The core AI interaction layer. This service will encapsulate all communication with the Google Gemini API, handling request formatting, response parsing, and potentially caching or rate limiting for Gemini API calls.
+4.  **User Management Service**: Handles user profiles, preferences, and other user-specific data.
+5.  **Content Management Service**: Manages educational content, problem sets, and other static or dynamic learning materials.
+6.  **File Storage Service**: Manages the upload, storage, and retrieval of user-uploaded files (e.g., images of problems, documents).
+7.  **Supabase**: Provides managed PostgreSQL database, authentication, and real-time capabilities.
+8.  **Supabase Storage**: For unstructured data like uploaded images and documents, integrated with Supabase.
+
+### 4. Core Components
+
+#### 4.1. Programming Language & Framework
+
+*   **Python**: Chosen for its rich ecosystem, strong AI/ML libraries, and ease of development.
+*   **FastAPI**: A modern, fast (high-performance) web framework for building APIs with Python 3.7+ based on standard Python type hints. It offers automatic interactive API documentation (Swagger UI/ReDoc).
+
+#### 4.2. Asynchronous Operations
+
+*   **`asyncio`**: FastAPI is built on `asyncio`, enabling efficient handling of concurrent requests, crucial for I/O-bound operations like API calls to Gemini or database interactions.
+
+#### 4.3. Database & Authentication
+
+*   **Supabase**: A powerful open-source Firebase alternative that provides a PostgreSQL database, authentication, real-time subscriptions, and more. It simplifies backend development significantly.
+*   **SQLAlchemy**: (Still applicable for ORM, connecting to Supabase's PostgreSQL).
+*   **Alembic**: (Still applicable for database migrations, working with Supabase's PostgreSQL).
+
+#### 4.4. Object Storage
+
+*   **Supabase Storage**: Integrated object storage solution provided by Supabase, ideal for storing large binary objects like user-uploaded images and documents. It handles scalability and durability.
+
+#### 4.5. Authentication & Authorization
+
+*   **Supabase Auth**: Leverages Supabase's built-in authentication system, which supports various methods (email/password, OAuth providers) and handles user management, session management, and JWT issuance.
+*   **JWT (JSON Web Tokens)**: Supabase Auth issues JWTs, which will be used for secure API authentication. FastAPI will validate these tokens.
+*   **FastAPI Security**: Integration with FastAPI for handling JWT validation and role-based access control, working in conjunction with Supabase Auth.
+
+#### 4.6. Gemini API Integration
+
+*   **Google Cloud Client Library for Python**: The official library for interacting with Google Cloud services, including the Gemini API.
+*   **Rate Limiting**: Implement client-side rate limiting to adhere to Gemini API quotas and prevent abuse.
+*   **Error Handling**: Robust error handling for API calls, including retries with exponential backoff for transient errors.
+*   **Context Management**: For conversational AI, managing the chat history and context to provide relevant responses from Gemini.
+
+#### 4.7. Background Tasks & Queues
+
+*   **Celery**: A distributed task queue for handling long-running or resource-intensive tasks asynchronously (e.g., complex document processing, large image analysis, pre-computation of AI responses).
+*   **Redis**: As a message broker for Celery.
+
+### 5. File Structure (Example)
+
+```
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py                 # FastAPI application entry point
+│   ├── api/                    # API endpoints
+│   │   ├── __init__.py
+│   │   ├── v1/
+│   │   │   ├── __init__.py
+│   │   │   ├── endpoints/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── auth.py
+│   │   │   │   ├── chat.py
+│   │   │   │   ├── users.py
+│   │   │   │   └── files.py
+│   │   │   └── schemas.py      # Pydantic models for request/response validation
+│   ├── core/                   # Core configurations, settings, constants
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   └── security.py
+│   ├── crud/                   # Create, Read, Update, Delete operations for database
+│   │   ├── __init__.py
+│   │   ├── user.py
+│   │   ├── message.py
+│   │   └── content.py
+│   ├── db/                     # Database session, models, migrations
+│   │   ├── __init__.py
+│   │   ├── base.py             # Base for SQLAlchemy models
+│   │   ├── session.py
+│   │   └── models/
+│   │       ├── __init__.py
+│   │       ├── user.py
+│   │       └── chat.py
+│   ├── services/               # Business logic, external integrations
+│   │   ├── __init__.py
+│   │   ├── auth_service.py
+│   │   ├── gemini_service.py   # Gemini API wrapper logic
+│   │   ├── file_service.py
+│   │   └── content_service.py
+│   ├── tasks/                  # Celery tasks
+│   │   ├── __init__.py
+│   │   └── processing_tasks.py
+│   └── utils/                  # Utility functions
+│       ├── __init__.py
+│       └── helpers.py
+├── tests/                      # Unit and integration tests
+│   ├── __init__.py
+│   ├── api/
+│   ├── services/
+│   └── ...
+├── migrations/                 # Alembic migration scripts
+├── .env.example                # Environment variables example
+├── Dockerfile                  # Dockerization for deployment
+├── requirements.txt            # Python dependencies
+├── README.md                   # Backend specific README
+├── start.sh                    # Script to start the application
+└── uvicorn_config.py           # Uvicorn configuration
+```
+
+### 6. API Design (RESTful Principles)
+
+*   **Clear Naming Conventions**: Use plural nouns for resource endpoints (e.g., `/users`, `/chats`).
+*   **HTTP Methods**: Use appropriate HTTP methods (GET for retrieval, POST for creation, PUT/PATCH for updates, DELETE for deletion).
+*   **Versioning**: API versioning (e.g., `/api/v1/`) to allow for future changes without breaking existing clients.
+*   **Error Handling**: Consistent error responses with clear status codes and informative messages.
+*   **Pagination & Filtering**: For large collections, implement pagination and filtering to improve performance and usability.
+*   **Input Validation**: Strict validation of all incoming request data using Pydantic models in FastAPI.
+
+#### Example Endpoints:
+
+*   `POST /api/v1/auth/register`
+*   `POST /api/v1/auth/login`
+*   `POST /api/v1/chat/message` (for sending text messages to Gemini)
+*   `POST /api/v1/chat/image` (for sending image-based problems to Gemini)
+*   `GET /api/v1/chat/history/{user_id}`
+*   `GET /api/v1/users/me`
+*   `POST /api/v1/files/upload`
+
+### 7. Data Management
+
+#### 7.1. Database Schema (Conceptual)
+
+*   **Users**: (Managed by Supabase Auth, but conceptual fields like `id`, `email`, `created_at` are still relevant for linking data)
+*   **Chats**: `id`, `user_id`, `created_at`, `updated_at`
+*   **Messages**: `id`, `chat_id`, `sender` (`user`/`ai`), `content`, `timestamp`, `type` (`text`/`image`), `image_url` (nullable)
+*   **Content**: `id`, `title`, `description`, `type` (`text`/`pdf`/`video`), `storage_path`, `created_at`
+
+#### 7.2. Data Flow for a Chat Message
+
+1.  **Frontend**: User sends a message (text or image).
+2.  **API Gateway**: Receives request, forwards to Gemini Wrapper Service.
+3.  **Gemini Wrapper Service**: 
+    *   Authenticates user.
+    *   Validates input.
+    *   Saves user message to `Messages` table.
+    *   Calls `gemini_service.send_message_to_gemini()`.
+    *   If image, `file_service` handles upload to cloud storage and provides URL.
+    *   Receives response from Gemini API.
+    *   Saves AI response to `Messages` table.
+    *   Returns AI response to Frontend.
+
+### 8. Security Considerations
+
+*   **Input Validation**: Prevent injection attacks (SQL, XSS) by strictly validating all user inputs.
+*   **Authentication & Authorization**: Leverage Supabase Auth for secure user authentication and implement Row Level Security (RLS) in PostgreSQL for fine-grained access control.
+*   **Password Hashing**: Store user passwords using strong hashing algorithms (e.g., bcrypt).
+*   **Environment Variables**: Manage sensitive information (API keys, database credentials) using environment variables, not hardcoded values.
+*   **HTTPS**: Enforce HTTPS for all communication to encrypt data in transit.
+ *   **CORS**: Properly configure Cross-Origin Resource Sharing (CORS) to allow only trusted origins.
+ *   **Rate Limiting**: Protect against brute-force attacks and API abuse.
+ *   **Logging & Monitoring**: Implement comprehensive logging and monitoring to detect and respond to security incidents.
+
+### 9. Future Enhancements
+
+*   **Dockerization**: While direct deployment is chosen for the MVP, future iterations will explore Dockerization for improved consistency, isolation, and portability across different environments. This will facilitate easier scaling and and deployment to container orchestration platforms like Kubernetes or Docker Swarm.
+
+### 9. Deployment Strategy
+
+*   **Direct Deployment**: For initial stages and cost-effectiveness, the FastAPI application will be deployed directly on a hosting provider (e.g., Hostinger VPS or shared hosting with Python support).
+    *   **Process**: This involves uploading code, setting up a Python virtual environment, installing dependencies, configuring a WSGI server (like Gunicorn/Uvicorn), and using a reverse proxy (like Nginx) for public access.
+    *   **Environment Variables**: Sensitive information (API keys, database credentials) will be managed securely using environment variables on the server.
+    *   **Process Management**: A process manager (e.g., `systemd` or `supervisor`) will be used to ensure the application runs continuously.
+*   **Cloud Platform**: The application will be deployed on a suitable cloud platform that supports Python applications.
+*   **CI/CD**: Implement Continuous Integration/Continuous Deployment pipelines to automate testing and deployment processes (can be simplified for MVP).
+
+### 10. Future Enhancements
+
+*   **Advanced AI Features**: Integration with other Gemini capabilities (e.g., function calling, multi-turn conversations, more complex multimodal inputs).
+*   **Personalized Learning Paths**: Develop logic to create adaptive learning paths based on user progress and performance.
+*   **Analytics & Reporting**: Collect and analyze user interaction data to improve the tutoring experience.
+*   **Real-time Communication**: Implement WebSockets for real-time chat updates.
+*   **Caching**: Introduce caching layers (e.g., Redis) for frequently accessed data or Gemini responses to reduce latency and API costs.
+*   **Observability**: Enhance monitoring, logging, and tracing for better insights into system health and performance.

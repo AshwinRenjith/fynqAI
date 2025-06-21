@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pydantic-settings
+psycopg2-binary
+supabase
+python-jose
+python-dotenv
+celery
+redis
+fastapi-limiter
+google-generativeai
+alembic
+pytest
+httpx

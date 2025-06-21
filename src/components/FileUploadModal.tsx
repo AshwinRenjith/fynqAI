@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { X, Upload, FileText, BookOpen, Plus, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { uploadFile } from '@/lib/api';
 
 interface FileUploadModalProps {
   isOpen: boolean;
@@ -27,8 +28,8 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose }) =>
     
     if (newFiles.length > 0) {
       toast({
-        title: "Files uploaded successfully! 📚",
-        description: `${newFiles.length} file(s) added to your learning resources.`,
+        title: "Files selected! 📚",
+        description: `${newFiles.length} file(s) ready for upload. Click 'Save Resources' to finalize.`,
       });
     }
   };
@@ -161,11 +162,42 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose }) =>
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              toast({
-                title: "Resources saved! 🎉",
-                description: "fynqAI will now use your materials for personalized tutoring.",
-              });
+            onClick={async () => {
+              if (uploadedFiles.length === 0) {
+                toast({
+                  title: "No files to save",
+                  description: "Please select files before saving.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              
+              let successCount = 0;
+              let errorCount = 0;
+              for (const file of uploadedFiles) {
+                try {
+                  await uploadFile(file);
+                  successCount++;
+                } catch (error) {
+                  console.error(`Error uploading ${file.name}:`, error);
+                  errorCount++;
+                }
+              }
+
+              if (successCount > 0) {
+                toast({
+                  title: "Resources saved! 🎉",
+                  description: `${successCount} file(s) uploaded successfully. fynqAI will now use your materials for personalized tutoring.`, 
+                });
+              }
+
+              if (errorCount > 0) {
+                toast({
+                  title: "Upload failed for some files",
+                  description: `${errorCount} file(s) could not be uploaded. Please check the console for details.`, 
+                  variant: "destructive",
+                });
+              }
               onClose();
             }}
             className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white rounded-2xl px-6 py-3 transition-all duration-300 hover:scale-105 shadow-lg"

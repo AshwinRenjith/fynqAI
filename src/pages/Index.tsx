@@ -8,6 +8,7 @@ import ChatMessage from '@/components/ChatMessage';
 import FileUploadModal from '@/components/FileUploadModal';
 import Navbar from '@/components/Navbar';
 import WelcomeSection from '@/components/WelcomeSection';
+import { sendMessageToGemini, uploadImageToGemini, uploadFile } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -40,21 +41,29 @@ const Index = () => {
     setInputMessage('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const response = await sendMessageToGemini(inputMessage);
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: "I understand your question! Let me break this down step-by-step for you. I'll provide a clear, easy-to-understand explanation that will help you grasp the concept completely. 📚✨",
+        content: response.response,
         sender: 'ai',
         timestamp: new Date(),
         type: 'text'
       };
       setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to get response from AI. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type.startsWith('image/')) {
       const imageUrl = URL.createObjectURL(file);
@@ -69,22 +78,30 @@ const Index = () => {
       setMessages(prev => [...prev, userMessage]);
       
       setIsLoading(true);
-      setTimeout(() => {
+      try {
+        const response = await uploadImageToGemini(file);
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
-          content: "I can see your problem! Let me analyze this step by step and provide you with a detailed solution that's easy to follow. 🎯📖",
+          content: response.response,
           sender: 'ai',
           timestamp: new Date(),
           type: 'text'
         };
         setMessages(prev => [...prev, aiMessage]);
+        toast({
+          title: "Image uploaded successfully! 📸",
+          description: "fynqAI is analyzing your problem...",
+        });
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        toast({
+          title: "Error",
+          description: "Failed to upload image. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
         setIsLoading(false);
-      }, 2000);
-      
-      toast({
-        title: "Image uploaded successfully! 📸",
-        description: "fynqAI is analyzing your problem...",
-      });
+      }
     }
   };
 
