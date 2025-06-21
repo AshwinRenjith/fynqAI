@@ -1,5 +1,6 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Send, Upload, FileText, Image, Menu, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,8 @@ import ChatMessage from '@/components/ChatMessage';
 import FileUploadModal from '@/components/FileUploadModal';
 import Navbar from '@/components/Navbar';
 import WelcomeSection from '@/components/WelcomeSection';
-import { sendMessageToGemini, uploadImageToGemini, uploadFile } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { sendMessageToGemini, uploadImageToGemini, getChatHistory } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -19,15 +21,53 @@ interface Message {
   imageUrl?: string;
 }
 
+interface ChatHistory {
+  chat_id: number;
+  title: string;
+  created_at: string;
+  messages: Array<{
+    sender: string;
+    content: string;
+    timestamp: string;
+  }>;
+}
+
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentChatId, setCurrentChatId] = useState<number | undefined>();
+  const [chatHistory, setChatHistory] = useState<ChatHistory[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect to auth if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
+
+  // Load chat history when user is authenticated
+  useEffect(() => {
+    if (user) {
+      loadChatHistory();
+    }
+  }, [user]);
+
+  const loadChatHistory = async () => {
+    try {
+      const history = await getChatHistory(() => navigate('/auth'));
+      setChatHistory(history);
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    }
+  };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() && !fileInputRef.current?.files?.length) return;
+    if (!inputMessage.trim()) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -42,7 +82,14 @@ const Index = () => {
     setIsLoading(true);
 
     try {
-      const response = await sendMessageToGemini(inputMessage);
+      const response = await sendMessageToGemini(
+        inputMessage, 
+        currentChatId,
+        () => navigate('/auth')
+      );
+      
+      setCurrentChatId(response.chat_id);
+      
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: response.response,
@@ -50,12 +97,17 @@ const Index = () => {
         timestamp: new Date(),
         type: 'text'
       };
+      
       setMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
+      
+      // Reload chat history to get updated list
+      loadChatHistory();
+      
+    } catch (error: any) {
       console.error('Error sending message:', error);
       toast({
         title: "Error",
-        description: "Failed to get response from AI. Please try again.",
+        description: error.message || "Failed to get response from AI. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -69,7 +121,7 @@ const Index = () => {
       const imageUrl = URL.createObjectURL(file);
       const userMessage: Message = {
         id: Date.now().toString(),
-        content: 'I uploaded an image for you to solve',
+        content: 'I uploaded an image for you to analyze',
         sender: 'user',
         timestamp: new Date(),
         type: 'image',
@@ -79,7 +131,15 @@ const Index = () => {
       
       setIsLoading(true);
       try {
-        const response = await uploadImageToGemini(file);
+        const response = await uploadImageToGemini(
+          file,
+          'Please analyze this image and help me understand it',
+          currentChatId,
+          () => navigate('/auth')
+        );
+        
+        setCurrentChatId(response.chat_id);
+        
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           content: response.response,
@@ -87,16 +147,22 @@ const Index = () => {
           timestamp: new Date(),
           type: 'text'
         };
+        
         setMessages(prev => [...prev, aiMessage]);
+        
         toast({
-          title: "Image uploaded successfully! 📸",
-          description: "fynqAI is analyzing your problem...",
+          title: "Image analyzed successfully! 📸",
+          description: "fynqAI has analyzed your image.",
         });
-      } catch (error) {
+        
+        // Reload chat history
+        loadChatHistory();
+        
+      } catch (error: any) {
         console.error('Error uploading image:', error);
         toast({
           title: "Error",
-          description: "Failed to upload image. Please try again.",
+          description: error.message || "Failed to upload image. Please try again.",
           variant: "destructive",
         });
       } finally {
@@ -111,6 +177,23 @@ const Index = () => {
       handleSendMessage();
     }
   };
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading fynqAI...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 relative">
@@ -188,7 +271,7 @@ const Index = () => {
 
             <Button
               onClick={handleSendMessage}
-              disabled={!inputMessage.trim() && !fileInputRef.current?.files?.length}
+              disabled={!inputMessage.trim() || isLoading}
               className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 disabled:from-gray-300 disabled:to-gray-400 text-white border-0 rounded-2xl h-12 w-12 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 disabled:hover:scale-100"
             >
               <Send className="h-5 w-5" />

@@ -4,6 +4,7 @@ import { X, Upload, FileText, BookOpen, Plus, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { uploadFile } from '@/lib/api';
+import { useNavigate } from 'react-router-dom';
 
 interface FileUploadModalProps {
   isOpen: boolean;
@@ -13,7 +14,9 @@ interface FileUploadModalProps {
 const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose }) => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
 
@@ -52,6 +55,52 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose }) =>
 
   const removeFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveResources = async () => {
+    if (uploadedFiles.length === 0) {
+      toast({
+        title: "No files to save",
+        description: "Please select files before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const file of uploadedFiles) {
+      try {
+        await uploadFile(file, () => navigate('/auth'));
+        successCount++;
+      } catch (error: any) {
+        console.error(`Error uploading ${file.name}:`, error);
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      toast({
+        title: "Resources saved! 🎉",
+        description: `${successCount} file(s) uploaded successfully. fynqAI will now use your materials for personalized tutoring.`, 
+      });
+      setUploadedFiles([]);
+    }
+
+    if (errorCount > 0) {
+      toast({
+        title: "Upload failed for some files",
+        description: `${errorCount} file(s) could not be uploaded. Please try again.`, 
+        variant: "destructive",
+      });
+    }
+
+    setIsUploading(false);
+    if (successCount > 0) {
+      onClose();
+    }
   };
 
   return (
@@ -162,47 +211,18 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ isOpen, onClose }) =>
             Cancel
           </Button>
           <Button
-            onClick={async () => {
-              if (uploadedFiles.length === 0) {
-                toast({
-                  title: "No files to save",
-                  description: "Please select files before saving.",
-                  variant: "destructive",
-                });
-                return;
-              }
-              
-              let successCount = 0;
-              let errorCount = 0;
-              for (const file of uploadedFiles) {
-                try {
-                  await uploadFile(file);
-                  successCount++;
-                } catch (error) {
-                  console.error(`Error uploading ${file.name}:`, error);
-                  errorCount++;
-                }
-              }
-
-              if (successCount > 0) {
-                toast({
-                  title: "Resources saved! 🎉",
-                  description: `${successCount} file(s) uploaded successfully. fynqAI will now use your materials for personalized tutoring.`, 
-                });
-              }
-
-              if (errorCount > 0) {
-                toast({
-                  title: "Upload failed for some files",
-                  description: `${errorCount} file(s) could not be uploaded. Please check the console for details.`, 
-                  variant: "destructive",
-                });
-              }
-              onClose();
-            }}
-            className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white rounded-2xl px-6 py-3 transition-all duration-300 hover:scale-105 shadow-lg"
+            onClick={handleSaveResources}
+            disabled={uploadedFiles.length === 0 || isUploading}
+            className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-2xl px-6 py-3 transition-all duration-300 hover:scale-105 shadow-lg disabled:hover:scale-100"
           >
-            Save Resources
+            {isUploading ? (
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Uploading...
+              </div>
+            ) : (
+              'Save Resources'
+            )}
           </Button>
         </div>
       </div>
