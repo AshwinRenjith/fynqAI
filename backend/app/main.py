@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,12 +18,14 @@ app = FastAPI(
     version="0.0.1",
 )
 
+# Updated CORS configuration to fix the OPTIONS request issues
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080"],  # Adjust this to your frontend URL
+    allow_origins=["http://localhost:8080", "http://localhost:3000", "https://*.lovable.app"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
@@ -31,8 +34,12 @@ app.include_router(files.router, prefix="/api/v1", tags=["File Storage"])
 
 @app.on_event("startup")
 async def startup():
-    redis = Redis(host="localhost", port=6379, db=0)
-    await FastAPILimiter.init(redis)
+    try:
+        redis = Redis(host="localhost", port=6379, db=0)
+        await FastAPILimiter.init(redis)
+    except Exception as e:
+        print(f"Redis connection failed: {e}")
+        print("Continuing without rate limiting...")
 
 @app.get("/", tags=["Root"])
 async def read_root():
