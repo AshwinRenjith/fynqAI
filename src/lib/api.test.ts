@@ -1,3 +1,4 @@
+
 import { sendMessageToGemini, uploadImageToGemini, uploadFile } from './api';
 
 describe('api.ts', () => {
@@ -35,7 +36,7 @@ describe('api.ts', () => {
   it('sendMessageToGemini handles 401/403 and calls onAuthError', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
     const onAuthError = jest.fn();
-    await expect(sendMessageToGemini('hi', onAuthError)).rejects.toThrow('AUTH_ERROR');
+    await expect(sendMessageToGemini('hi', undefined, onAuthError)).rejects.toThrow('Authentication required');
     expect(onAuthError).toHaveBeenCalled();
   });
 
@@ -62,4 +63,4 @@ describe('api.ts', () => {
       })
     );
   });
-}); 
+});
