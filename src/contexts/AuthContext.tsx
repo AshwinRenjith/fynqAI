@@ -1,8 +1,6 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
-import { getCurrentUser } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -29,44 +27,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
+    const getInitialSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+        localStorage.setItem('supabase.auth.token', data.session.access_token); // ✅ Save raw token
+      } else {
+        setSession(null);
+        setUser(null);
+        localStorage.removeItem('supabase.auth.token');
+      }
+      setLoading(false);
+    };
+
+    getInitialSession();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session);
+      (_event, session) => {
+        console.log('Auth state changed:', _event, session);
         setSession(session);
         setUser(session?.user ?? null);
-        
-        // Store token for API calls
         if (session?.access_token) {
-          localStorage.setItem('supabase.auth.token', session.access_token);
+          localStorage.setItem('supabase.auth.token', session.access_token); // ✅ Save raw token
         } else {
           localStorage.removeItem('supabase.auth.token');
         }
-        
-        setLoading(false);
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.access_token) {
-        localStorage.setItem('supabase.auth.token', session.access_token);
-      }
-      
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
@@ -75,9 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: redirectUrl
-      }
+      options: { emailRedirectTo: redirectUrl },
     });
     return { error };
   };
@@ -85,9 +79,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     localStorage.removeItem('supabase.auth.token');
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
   };
 
-  const value = {
+  const value: AuthContextType = {
     user,
     session,
     loading,
@@ -95,6 +91,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signOut,
   };
+
+  // Optional: UX-friendly loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-lg text-gray-600">Loading...</p>
+      </div>
+    );
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

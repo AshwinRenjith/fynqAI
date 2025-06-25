@@ -2,41 +2,33 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Helper to get JWT token from localStorage
-function getToken() {
+export const getToken = () => {
   return localStorage.getItem('supabase.auth.token');
-}
+};
 
 // Helper to handle fetch with auth and error handling
-async function fetchWithAuth(url: string, options: RequestInit = {}, onAuthError?: () => void) {
-  const token = getToken();
-  const headers: Record<string, string> = options.headers ? { ...options.headers as any } : {};
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  
-  headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-  
-  try {
-    const response = await fetch(url, { ...options, headers });
-    
-    if (response.status === 401 || response.status === 403) {
-      if (onAuthError) onAuthError();
-      throw new Error('Authentication required');
-    }
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-    }
-    
-    return response.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    throw error;
-  }
-}
+export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem('supabase.auth.token');
 
+  if (!token) {
+    throw new Error('Authentication required');
+  }
+
+  const headers = {
+    ...options.headers,
+    Authorization: `Bearer ${token}`, // ✅ Proper format
+    'Content-Type': 'application/json',
+  };
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(JSON.stringify(error));
+  }
+
+  return response.json();
+};
 export const sendMessageToGemini = async (message: string, chat_id?: number, onAuthError?: () => void) => {
   return fetchWithAuth(
     `${API_BASE_URL}/api/v1/chat/message`,
@@ -54,29 +46,29 @@ export const uploadImageToGemini = async (file: File, message: string = '', chat
   formData.append('image', file);
   formData.append('message', message);
   if (chat_id) formData.append('chat_id', chat_id.toString());
-  
+
   const headers: Record<string, string> = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/image`, {
       method: 'POST',
       headers,
       body: formData,
     });
-    
+
     if (response.status === 401 || response.status === 403) {
       if (onAuthError) onAuthError();
       throw new Error('Authentication required');
     }
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   } catch (error) {
     console.error('Image Upload Error:', error);
@@ -88,29 +80,29 @@ export const uploadFile = async (file: File, onAuthError?: () => void) => {
   const token = getToken();
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const headers: Record<string, string> = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/files/upload`, {
       method: 'POST',
       headers,
       body: formData,
     });
-    
+
     if (response.status === 401 || response.status === 403) {
       if (onAuthError) onAuthError();
       throw new Error('Authentication required');
     }
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   } catch (error) {
     console.error('File Upload Error:', error);

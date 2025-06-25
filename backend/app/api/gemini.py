@@ -5,11 +5,11 @@ from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from fastapi_limiter.depends import RateLimiter
-from app.core.security import validate_token
-from app.services.gemini_service import GeminiService
-from app.services.chat_service import ChatService
-from app.db.database import get_db
-from app.services.file_service import FileService
+from backend.app.core.security import validate_token
+from backend.app.services.gemini_service import GeminiService
+from backend.app.services.chat_service import ChatService
+from backend.app.db.database import get_db
+from backend.app.services.file_service import FileService
 import logging
 
 router = APIRouter()

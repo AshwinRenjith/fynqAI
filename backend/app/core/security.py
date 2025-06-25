@@ -15,7 +15,7 @@ def validate_token(credentials: HTTPAuthorizationCredentials = Security(reusable
             settings.supabase_jwt_secret,
             algorithms=["HS256"],
             audience="authenticated",
-            options={"verify_aud": True}
+            options={"verify_aud": False}
         )
         user_id: str = payload.get("sub")
         if user_id is None:

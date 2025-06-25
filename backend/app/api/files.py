@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from pydantic import BaseModel
 from fastapi_limiter.depends import RateLimiter
-from app.core.security import validate_token
-from app.services.file_service import FileService
+from ..core.security import validate_token
+from ..services.file_service import FileService
 
 router = APIRouter()
 

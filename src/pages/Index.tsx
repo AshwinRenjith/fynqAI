@@ -7,12 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Send, 
-  Upload, 
-  Sparkles, 
-  MessageSquare, 
-  BookOpen, 
+import {
+  Send,
+  Upload,
+  Sparkles,
+  MessageSquare,
+  BookOpen,
   Image as ImageIcon,
   Loader2
 } from 'lucide-react';
@@ -59,12 +59,22 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
+
+
   // Load chat history on component mount
   useEffect(() => {
     if (user) {
       loadChatHistory();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!loading && user) {
+      loadChatHistory();
+    }
+  }, [loading, user]);
+
+  if (!user || loading) return;
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -107,7 +117,7 @@ const Index = () => {
 
     try {
       let response;
-      
+
       if (selectedImage) {
         response = await uploadImageToGemini(selectedImage, messageText, currentChatId, handleAuthError);
       } else {
@@ -123,7 +133,7 @@ const Index = () => {
         };
 
         setMessages(prev => [...prev, aiMessage]);
-        
+
         // Update current chat ID if this is a new chat
         if (response.chat_id && !currentChatId) {
           setCurrentChatId(response.chat_id);
@@ -178,7 +188,7 @@ const Index = () => {
       timestamp: new Date(msg.timestamp),
       image: msg.content.startsWith('[Image]') ? undefined : undefined, // Image data not preserved in history
     }));
-    
+
     setMessages(loadedMessages);
     setCurrentChatId(chat.chat_id);
   };
@@ -203,7 +213,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Navbar />
-      
+
       {/* Main Content */}
       <div className="pt-20 px-4 pb-4 max-w-7xl mx-auto">
         <div className="flex gap-6 h-[calc(100vh-6rem)]">
@@ -219,17 +229,16 @@ const Index = () => {
                 New Chat
               </Button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto space-y-3">
               {chatHistory.map((chat) => (
                 <div
                   key={chat.chat_id}
                   onClick={() => loadChat(chat)}
-                  className={`p-4 rounded-2xl cursor-pointer transition-all duration-300 hover:scale-105 ${
-                    currentChatId === chat.chat_id
+                  className={`p-4 rounded-2xl cursor-pointer transition-all duration-300 hover:scale-105 ${currentChatId === chat.chat_id
                       ? 'bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-200'
                       : 'bg-white/50 hover:bg-white/70 border border-white/30'
-                  }`}
+                    }`}
                 >
                   <h3 className="font-semibold text-gray-800 truncate">{chat.title}</h3>
                   <p className="text-sm text-gray-600 mt-1">
@@ -306,11 +315,10 @@ const Index = () => {
                     className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
-                        message.sender === 'user'
+                      className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${message.sender === 'user'
                           ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
                           : 'bg-white/70 text-gray-800 border border-white/30'
-                      }`}
+                        }`}
                     >
                       {message.image && (
                         <img
@@ -320,9 +328,8 @@ const Index = () => {
                         />
                       )}
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                      <p className={`text-xs mt-2 ${
-                        message.sender === 'user' ? 'text-white/70' : 'text-gray-500'
-                      }`}>
+                      <p className={`text-xs mt-2 ${message.sender === 'user' ? 'text-white/70' : 'text-gray-500'
+                        }`}>
                         {message.timestamp.toLocaleTimeString()}
                       </p>
                     </div>
@@ -359,7 +366,7 @@ const Index = () => {
                   </Button>
                 </div>
               )}
-              
+
               <div className="flex space-x-3">
                 <input
                   type="file"
@@ -368,7 +375,7 @@ const Index = () => {
                   accept="image/*"
                   className="hidden"
                 />
-                
+
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   className="bg-white/50 hover:bg-white/70 text-gray-700 border border-white/30 rounded-2xl p-3 transition-all duration-300 hover:scale-105"
@@ -409,7 +416,7 @@ const Index = () => {
         </div>
       </div>
 
-      <FileUploadModal 
+      <FileUploadModal
         isOpen={isFileUploadModalOpen}
         onClose={() => setIsFileUploadModalOpen(false)}
       />
