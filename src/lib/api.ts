@@ -29,6 +29,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 
   return response.json();
 };
+
 export const sendMessageToGemini = async (message: string, chat_id?: number, onAuthError?: () => void) => {
   return fetchWithAuth(
     `${API_BASE_URL}/api/v1/chat/message`,
