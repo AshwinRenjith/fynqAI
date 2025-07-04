@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Mail, Lock, User, BookOpen } from 'lucide-react';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -27,24 +31,55 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = isLogin 
-        ? await signIn(email, password)
-        : await signUp(email, password);
-
-      if (error) {
-        toast({
-          title: "Authentication Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        if (isLogin) {
+      if (isLogin) {
+        const { error } = await signIn(email, password);
+        if (error) {
+          toast({
+            title: "Authentication Error",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
           toast({
             title: "Welcome back! 🎉",
             description: "Successfully signed in to fynqAI",
           });
           navigate('/');
+        }
+      } else {
+        // Sign up with additional profile data
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: {
+              username,
+              first_name: firstName,
+              last_name: lastName,
+            }
+          }
+        });
+
+        if (error) {
+          toast({
+            title: "Authentication Error",
+            description: error.message,
+            variant: "destructive",
+          });
         } else {
+          // Update profile with username after signup
+          if (data.user) {
+            await supabase
+              .from('profiles')
+              .update({
+                username,
+                first_name: firstName,
+                last_name: lastName,
+              })
+              .eq('user_id', data.user.id);
+          }
+
           toast({
             title: "Account created! 📧",
             description: "Please check your email to verify your account.",
@@ -90,6 +125,47 @@ const Auth = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
+              {!isLogin && (
+                <>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                      className="pl-10 bg-white/50 backdrop-blur-sm border border-white/30 rounded-2xl py-3 focus:ring-2 focus:ring-purple-300 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="First Name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required
+                        className="pl-9 bg-white/50 backdrop-blur-sm border border-white/30 rounded-2xl py-3 focus:ring-2 focus:ring-purple-300 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Last Name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        required
+                        className="pl-9 bg-white/50 backdrop-blur-sm border border-white/30 rounded-2xl py-3 focus:ring-2 focus:ring-purple-300 focus:border-transparent text-sm"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+              
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
