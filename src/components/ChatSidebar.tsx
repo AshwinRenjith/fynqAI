@@ -44,7 +44,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         />
       )}
       
-      {/* Sidebar */}
+      {/* Sidebar - now fixed positioned */}
       <div className={cn(
         "fixed left-0 top-20 h-[calc(100vh-5rem)] w-80 bg-white/95 backdrop-blur-xl border-r border-white/30 shadow-2xl z-50 transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-full"
