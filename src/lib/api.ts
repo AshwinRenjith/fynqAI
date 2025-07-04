@@ -33,19 +33,25 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, onAuthError
     return response.json();
   } catch (error) {
     console.error('API Error:', error);
+    // Re-throw the error so calling code can handle it
     throw error;
   }
 }
 
 export const sendMessageToGemini = async (message: string, chat_id?: number, onAuthError?: () => void) => {
-  return fetchWithAuth(
-    `${API_BASE_URL}/api/v1/chat/message`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ message, chat_id }),
-    },
-    onAuthError
-  );
+  try {
+    return await fetchWithAuth(
+      `${API_BASE_URL}/api/v1/chat/message`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message, chat_id }),
+      },
+      onAuthError
+    );
+  } catch (error) {
+    console.error('Error sending message to Gemini:', error);
+    throw error;
+  }
 };
 
 export const uploadImageToGemini = async (file: File, message: string = '', chat_id?: number, onAuthError?: () => void) => {

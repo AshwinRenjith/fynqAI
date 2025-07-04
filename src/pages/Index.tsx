@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,6 +8,7 @@ import ChatInterface from "@/components/ChatInterface";
 import ChatSidebar from "@/components/ChatSidebar";
 import { WelcomeMessage } from "@/components/WelcomeMessage";
 import { Survey } from "@/components/Survey";
+import { BackendStatus } from "@/components/BackendStatus";
 import { useChat } from "@/hooks/useChat";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
@@ -31,21 +33,53 @@ const Index = () => {
       if (!user) return;
       
       try {
-        // Get user profile
-        const { data: profile } = await supabase
+        // Get user profile - use maybeSingle() to avoid PGRST116 error
+        let { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
+
+        // If no profile exists, create one
+        if (!profile && !profileError) {
+          console.log('No profile found, creating one...');
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([{
+              user_id: user.id,
+              username: user.email?.split('@')[0] || 'user',
+              first_name: user.user_metadata?.first_name || '',
+              last_name: user.user_metadata?.last_name || ''
+            }])
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
+          } else {
+            profile = newProfile;
+            console.log('Profile created successfully:', profile);
+          }
+        }
+
+        if (profileError) {
+          console.error('Error loading profile:', profileError);
+          return;
+        }
 
         setUserProfile(profile);
 
-        // Check if user has completed survey
-        const { data: survey } = await supabase
+        // Check if user has completed survey - use maybeSingle() here too
+        const { data: survey, error: surveyError } = await supabase
           .from('survey_responses')
           .select('id')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
+
+        if (surveyError) {
+          console.error('Error checking survey:', surveyError);
+          return;
+        }
 
         if (!survey) {
           setShowSurvey(true);
@@ -159,6 +193,9 @@ const Index = () => {
           />
         </div>
       </div>
+
+      {/* Backend Status Indicator */}
+      <BackendStatus />
     </div>
   );
 };

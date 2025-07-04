@@ -2,34 +2,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
-import { Send, Paperclip, Sparkles, User } from 'lucide-react';
+import { Send, Paperclip, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/hooks/useChat';
 import { sendMessageToGemini } from '@/lib/api';
 import { FileManager } from '@/components/FileManager';
+import { toast } from '@/hooks/use-toast';
 
 interface ChatInterfaceProps {
   currentSessionId: string | null;
   hasMessages: boolean;
 }
 
-interface Message {
-  id: string;
-  content: string;
-  is_user: boolean;
-  created_at: string;
-}
-
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMessages }) => {
   const { user } = useAuth();
   const { currentMessages, addMessage, startNewChat } = useChat();
-  const [input, setInput] = useState('');
+  const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -41,43 +34,53 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !user) return;
+    if (!message.trim() || isLoading || !user) return;
 
-    const messageContent = input.trim();
-    setInput('');
+    const userMessage = message.trim();
+    setMessage('');
     setIsLoading(true);
 
     try {
+      // Ensure we have a session
       let sessionId = currentSessionId;
-      
-      // Create new session if none exists
       if (!sessionId) {
         const newSession = await startNewChat();
         sessionId = newSession?.id || null;
       }
 
       if (!sessionId) {
-        throw new Error('Failed to create chat session');
-      }
-
-      // Add user message
-      await addMessage(sessionId, messageContent, true);
-
-      // Send to backend API
-      const response = await sendMessageToGemini(messageContent, undefined, () => {
         toast({
-          title: "Authentication required",
-          description: "Please sign in to chat with AI tutor",
+          title: "Error",
+          description: "Failed to create chat session. Please try again.",
           variant: "destructive",
         });
-      });
-
-      // Add AI response
-      if (response && response.response) {
-        await addMessage(sessionId, response.response, false);
-      } else {
-        throw new Error('No response from AI');
+        setIsLoading(false);
+        return;
       }
+
+      // Add user message to database
+      await addMessage(sessionId, userMessage, true);
+
+      // Try to get AI response from backend
+      let aiResponse = '';
+      try {
+        const response = await sendMessageToGemini(userMessage);
+        aiResponse = response.response || 'I apologize, but I received an empty response. Could you please rephrase your question?';
+      } catch (apiError) {
+        console.error('Backend API error:', apiError);
+        
+        // Fallback response when backend is not available
+        aiResponse = generateFallbackResponse(userMessage);
+        
+        toast({
+          title: "Backend Unavailable",
+          description: "Using offline mode. Please start your backend server for full AI functionality.",
+          variant: "destructive",
+        });
+      }
+
+      // Add AI response to database
+      await addMessage(sessionId, aiResponse, false);
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -91,147 +94,128 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     }
   };
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+  const generateFallbackResponse = (userMessage: string): string => {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    if (lowerMessage.includes('math') || lowerMessage.includes('equation') || lowerMessage.includes('solve')) {
+      return "I'd be happy to help you with math! However, I'm currently running in offline mode. To get detailed mathematical solutions and step-by-step explanations, please start your backend server. In the meantime, I can suggest breaking down complex problems into smaller steps and using online calculators for verification.";
+    }
+    
+    if (lowerMessage.includes('science') || lowerMessage.includes('chemistry') || lowerMessage.includes('physics')) {
+      return "Science questions are fascinating! I'm currently in offline mode, so I can't provide detailed scientific explanations right now. Please start your backend server for comprehensive science tutoring. For now, I recommend consulting your textbook or reliable online resources.";
+    }
+    
+    if (lowerMessage.includes('help') || lowerMessage.includes('study')) {
+      return "I'm here to help with your studies! Currently running in offline mode - please start your backend server (FastAPI on port 8000) for full AI tutoring capabilities. Once connected, I can provide detailed explanations, solve problems step-by-step, and adapt to your learning style.";
+    }
+    
+    return "Hello! I'm your AI tutor, but I'm currently running in offline mode. To unlock my full potential for personalized learning, detailed explanations, and interactive problem-solving, please start your backend server. Once connected, I'll be able to provide comprehensive educational support tailored to your needs!";
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
+          <p className="text-gray-600">Please sign in to chat with your AI tutor.</p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="flex-1 flex flex-col">
       {/* Messages Area */}
-      <ScrollArea className="flex-1 px-4 py-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {currentMessages.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-white" />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {currentMessages.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto">
+                <span className="text-2xl text-white">🤖</span>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                Ready to learn something new?
-              </h3>
-              <p className="text-gray-600 max-w-md mx-auto">
-                Ask me anything about your studies, homework, or any topic you'd like to explore. I'm here to help you understand and learn!
+              <h3 className="text-xl font-semibold text-gray-800">Ready to Learn!</h3>
+              <p className="text-gray-600 max-w-md">
+                Ask me anything about math, science, or any subject you're studying. 
+                I'm here to help you understand and learn!
               </p>
             </div>
-          ) : (
-            currentMessages.map((message: Message) => (
-              <div key={message.id} className={`flex ${message.is_user ? 'justify-end' : 'justify-start'}`}>
-                <div className={`flex items-start space-x-3 max-w-3xl ${message.is_user ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                  {/* Avatar */}
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${
-                    message.is_user 
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-500' 
-                      : 'bg-gradient-to-r from-purple-500 to-pink-500'
-                  }`}>
-                    {message.is_user ? (
-                      <User className="h-5 w-5 text-white" />
-                    ) : (
-                      <Sparkles className="h-5 w-5 text-white" />
-                    )}
-                  </div>
-
-                  {/* Message Bubble */}
-                  <div className="relative group">
-                    <div className={`
-                      backdrop-blur-xl border border-white/30 rounded-3xl px-6 py-4 shadow-xl transition-all duration-300 hover:shadow-2xl
-                      ${message.is_user 
-                        ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 hover:from-blue-500/30 hover:to-purple-500/30' 
-                        : 'bg-white/70 hover:bg-white/80'
-                      }
-                    `}>
-                      <p className={`text-sm leading-relaxed ${
-                        message.is_user ? 'text-gray-800' : 'text-gray-700'
-                      }`}>
-                        {message.content}
-                      </p>
-                      
-                      <div className={`text-xs mt-2 opacity-60 ${
-                        message.is_user ? 'text-gray-600' : 'text-gray-500'
-                      }`}>
-                        {formatTime(message.created_at)}
-                      </div>
-                    </div>
-
-                    {/* Message indicator */}
-                    <div className={`absolute top-4 ${
-                      message.is_user ? '-left-1' : '-right-1'
-                    } w-2 h-2 bg-gradient-to-r ${
-                      message.is_user 
-                        ? 'from-blue-500 to-purple-500' 
-                        : 'from-purple-500 to-pink-500'
-                    } rounded-full opacity-70 group-hover:opacity-100 transition-opacity duration-300`}></div>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-          
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="flex items-start space-x-3 max-w-3xl">
-                <div className="flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg bg-gradient-to-r from-purple-500 to-pink-500">
-                  <Sparkles className="h-5 w-5 text-white" />
-                </div>
-                <div className="backdrop-blur-xl border border-white/30 rounded-3xl px-6 py-4 shadow-xl bg-white/70">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                </div>
+          </div>
+        ) : (
+          currentMessages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex ${msg.is_user ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[70%] p-4 rounded-2xl ${
+                  msg.is_user
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                    : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
+                }`}
+              >
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <span className="text-xs opacity-70 mt-2 block">
+                  {new Date(msg.created_at).toLocaleTimeString()}
+                </span>
               </div>
             </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+          ))
+        )}
+        
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                <span className="text-gray-600">AI is thinking...</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div ref={messagesEndRef} />
+      </div>
 
       {/* Input Area */}
-      <div className="border-t border-white/30 bg-white/20 backdrop-blur-xl p-4">
-        <div className="max-w-4xl mx-auto">
-          <form onSubmit={handleSubmit} className="relative">
-            <Card className="bg-white/80 backdrop-blur-xl border-white/50 shadow-2xl">
-              <div className="flex items-end space-x-3 p-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowFileManager(true)}
-                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-xl p-2"
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
-                
-                <div className="flex-1">
-                  <Textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask me anything about your studies..."
-                    className="min-h-[60px] max-h-32 resize-none border-0 bg-transparent focus:ring-0 focus:outline-none text-gray-800 placeholder:text-gray-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSubmit(e);
-                      }
-                    }}
-                    disabled={isLoading}
-                  />
-                </div>
-                
-                <Button
-                  type="submit"
-                  disabled={!input.trim() || isLoading}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl px-6 py-3 shadow-lg hover:shadow-xl transition-all duration-200"
-                >
-                  <Send className="h-5 w-5" />
-                </Button>
-              </div>
-            </Card>
-          </form>
-        </div>
+      <div className="p-4 bg-white border-t">
+        <form onSubmit={handleSubmit} className="flex items-end space-x-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFileManager(true)}
+            className="mb-2"
+          >
+            <Paperclip className="w-4 h-4" />
+          </Button>
+          
+          <div className="flex-1">
+            <Textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask me anything about your studies..."
+              className="min-h-[60px] max-h-32 resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+              disabled={isLoading}
+            />
+          </div>
+          
+          <Button
+            type="submit"
+            disabled={!message.trim() || isLoading}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 mb-2"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </form>
       </div>
 
       {/* File Manager Modal */}
