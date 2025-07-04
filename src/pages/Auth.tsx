@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -130,6 +129,8 @@ const Auth = () => {
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
+                      id="username"
+                      name="username"
                       type="text"
                       placeholder="Username"
                       value={username}
@@ -143,6 +144,8 @@ const Auth = () => {
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
+                        id="firstName"
+                        name="firstName"
                         type="text"
                         placeholder="First Name"
                         value={firstName}
@@ -154,6 +157,8 @@ const Auth = () => {
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
+                        id="lastName"
+                        name="lastName"
                         type="text"
                         placeholder="Last Name"
                         value={lastName}
@@ -169,6 +174,8 @@ const Auth = () => {
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
+                  id="email"
+                  name="email"
                   type="email"
                   placeholder="Email address"
                   value={email}
@@ -181,6 +188,8 @@ const Auth = () => {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
+                  id="password"
+                  name="password"
                   type="password"
                   placeholder="Password"
                   value={password}
