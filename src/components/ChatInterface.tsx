@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +5,7 @@ import { toast } from '@/hooks/use-toast';
 import { sendMessageToGemini } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Send, AlertCircle, Image, FileText, Paperclip } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 const ChatInterface = () => {
   const [message, setMessage] = useState('');
@@ -142,7 +142,7 @@ const ChatInterface = () => {
         {response && (
           <div className="bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl p-6 shadow-lg">
             <div className="prose prose-gray max-w-none">
-              <p className="text-gray-700 whitespace-pre-wrap">{response}</p>
+              <ReactMarkdown>{response}</ReactMarkdown>
             </div>
           </div>
         )}
