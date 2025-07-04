@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -18,27 +18,50 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
 }) => {
   const [displayedContent, setDisplayedContent] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const indexRef = useRef(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isVisibleRef = useRef(true);
+
+  // Track page visibility to pause/resume animation
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isVisibleRef.current = !document.hidden;
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     if (isLatest && content) {
       setIsTyping(true);
-      setDisplayedContent('');
+      setDisplayedContent(''); // Start with empty to prevent spoiler
+      indexRef.current = 0;
       
-      let index = 0;
-      const typewriterSpeed = 30; // milliseconds per character
+      const typewriterSpeed = 15; // Increased speed (reduced from 30ms to 15ms)
       
-      const timer = setInterval(() => {
-        if (index < content.length) {
-          setDisplayedContent(content.slice(0, index + 1));
-          index++;
+      const typeNextCharacter = () => {
+        if (indexRef.current < content.length) {
+          // Only continue if page is visible
+          if (isVisibleRef.current) {
+            setDisplayedContent(content.slice(0, indexRef.current + 1));
+            indexRef.current++;
+          }
+          
+          timerRef.current = setTimeout(typeNextCharacter, typewriterSpeed);
         } else {
           setIsTyping(false);
-          clearInterval(timer);
           onComplete?.();
         }
-      }, typewriterSpeed);
+      };
 
-      return () => clearInterval(timer);
+      timerRef.current = setTimeout(typeNextCharacter, typewriterSpeed);
+
+      return () => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+        }
+      };
     } else {
       // For older messages, show immediately
       setDisplayedContent(content);
@@ -74,19 +97,16 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
               {children}
             </p>
           ),
-          // Custom strong/bold styling
           strong: ({ children }) => (
             <strong className="font-semibold text-gray-800">
               {children}
             </strong>
           ),
-          // Custom emphasis/italic styling
           em: ({ children }) => (
             <em className="italic text-gray-700">
               {children}
             </em>
           ),
-          // Custom list styling
           ul: ({ children }) => (
             <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">
               {children}
