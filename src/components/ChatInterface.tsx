@@ -64,17 +64,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
       // Try to get AI response from backend
       let aiResponse = '';
       try {
+        console.log('Sending message to backend:', userMessage);
         const response = await sendMessageToGemini(userMessage);
+        console.log('Backend response:', response);
+        
         aiResponse = response.response || 'I apologize, but I received an empty response. Could you please rephrase your question?';
+        
+        if (response.status === 'offline_mode' || response.status === 'fallback') {
+          toast({
+            title: "Backend Issue",
+            description: "Using fallback responses. Please check your backend configuration.",
+            variant: "destructive",
+          });
+        }
       } catch (apiError) {
         console.error('Backend API error:', apiError);
         
-        // Fallback response when backend is not available
+        // Improved fallback response
         aiResponse = generateFallbackResponse(userMessage);
         
         toast({
           title: "Backend Unavailable",
-          description: "Using offline mode. Please start your backend server for full AI functionality.",
+          description: "Using offline mode. Please check your backend server and CORS configuration.",
           variant: "destructive",
         });
       }
@@ -98,18 +109,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     const lowerMessage = userMessage.toLowerCase();
     
     if (lowerMessage.includes('math') || lowerMessage.includes('equation') || lowerMessage.includes('solve')) {
-      return "I'd be happy to help you with math! However, I'm currently running in offline mode. To get detailed mathematical solutions and step-by-step explanations, please start your backend server. In the meantime, I can suggest breaking down complex problems into smaller steps and using online calculators for verification.";
+      return "I'd be happy to help you with math! However, I'm currently running in offline mode due to backend connectivity issues. To get detailed mathematical solutions and step-by-step explanations, please ensure your FastAPI backend is running and properly configured with CORS settings.";
     }
     
     if (lowerMessage.includes('science') || lowerMessage.includes('chemistry') || lowerMessage.includes('physics')) {
-      return "Science questions are fascinating! I'm currently in offline mode, so I can't provide detailed scientific explanations right now. Please start your backend server for comprehensive science tutoring. For now, I recommend consulting your textbook or reliable online resources.";
+      return "Science questions are fascinating! I'm currently in offline mode due to backend connectivity issues. Please check your FastAPI backend server and CORS configuration for comprehensive science tutoring capabilities.";
     }
     
     if (lowerMessage.includes('help') || lowerMessage.includes('study')) {
-      return "I'm here to help with your studies! Currently running in offline mode - please start your backend server (FastAPI on port 8000) for full AI tutoring capabilities. Once connected, I can provide detailed explanations, solve problems step-by-step, and adapt to your learning style.";
+      return "I'm here to help with your studies! Currently running in offline mode due to backend connectivity issues. Please ensure your FastAPI backend is running on port 8000 with proper CORS configuration for full AI tutoring capabilities.";
     }
     
-    return "Hello! I'm your AI tutor, but I'm currently running in offline mode. To unlock my full potential for personalized learning, detailed explanations, and interactive problem-solving, please start your backend server. Once connected, I'll be able to provide comprehensive educational support tailored to your needs!";
+    return "Hello! I'm your AI tutor, but I'm currently running in offline mode due to backend connectivity issues. To unlock my full potential for personalized learning, detailed explanations, and interactive problem-solving, please check that your FastAPI backend is running and properly configured with CORS settings.";
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

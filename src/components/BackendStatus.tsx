@@ -14,16 +14,26 @@ export const BackendStatus: React.FC = () => {
       const response = await fetch('http://localhost:8000/', {
         method: 'GET',
         mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+        },
       });
       
       if (response.ok) {
-        setStatus('online');
-        setIsVisible(false); // Hide when online
+        const data = await response.json();
+        if (data.message && data.status === 'online') {
+          setStatus('online');
+          setIsVisible(false); // Hide when online
+        } else {
+          setStatus('offline');
+          setIsVisible(true);
+        }
       } else {
         setStatus('offline');
         setIsVisible(true);
       }
     } catch (error) {
+      console.log('Backend check failed:', error);
       setStatus('offline');
       setIsVisible(true);
     }
@@ -43,12 +53,17 @@ export const BackendStatus: React.FC = () => {
       <div className="flex items-start space-x-3">
         <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
         <div className="flex-1">
-          <h4 className="font-medium text-amber-800">Backend Offline</h4>
+          <h4 className="font-medium text-amber-800">Backend Connection Issue</h4>
           <p className="text-sm text-amber-700 mt-1">
-            Your FastAPI backend is not running. Start it with:
+            Having trouble connecting to your backend. Please check:
           </p>
+          <ul className="text-xs text-amber-700 mt-2 list-disc list-inside">
+            <li>Backend is running on port 8000</li>
+            <li>CORS is properly configured</li>
+            <li>No firewall blocking connections</li>
+          </ul>
           <code className="text-xs bg-amber-100 px-2 py-1 rounded mt-2 block">
-            cd backend && python -m uvicorn main:app --reload
+            cd backend && python -m uvicorn main:app --reload --host 0.0.0.0
           </code>
           <div className="flex justify-between items-center mt-3">
             <span className="text-xs text-amber-600">

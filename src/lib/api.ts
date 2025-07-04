@@ -3,7 +3,17 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 
 // Helper to get JWT token from localStorage
 function getToken() {
-  return localStorage.getItem('supabase.auth.token');
+  // Try to get the token from Supabase session
+  const supabaseAuth = localStorage.getItem('sb-lqfqdpemaihdtpzyuevl-auth-token');
+  if (supabaseAuth) {
+    try {
+      const authData = JSON.parse(supabaseAuth);
+      return authData.access_token;
+    } catch (e) {
+      console.log('Could not parse Supabase auth token');
+    }
+  }
+  return null;
 }
 
 // Helper to handle fetch with auth and error handling
@@ -18,7 +28,11 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, onAuthError
   headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   
   try {
-    const response = await fetch(url, { ...options, headers });
+    const response = await fetch(url, { 
+      ...options, 
+      headers,
+      mode: 'cors' // Explicitly set CORS mode
+    });
     
     if (response.status === 401 || response.status === 403) {
       if (onAuthError) onAuthError();
@@ -33,7 +47,6 @@ async function fetchWithAuth(url: string, options: RequestInit = {}, onAuthError
     return response.json();
   } catch (error) {
     console.error('API Error:', error);
-    // Re-throw the error so calling code can handle it
     throw error;
   }
 }
@@ -44,7 +57,7 @@ export const sendMessageToGemini = async (message: string, chat_id?: number, onA
       `${API_BASE_URL}/api/v1/chat/message`,
       {
         method: 'POST',
-        body: JSON.stringify({ message, chat_id }),
+        body: JSON.stringify({ message, chat_id: chat_id?.toString() }),
       },
       onAuthError
     );
@@ -71,6 +84,7 @@ export const uploadImageToGemini = async (file: File, message: string = '', chat
       method: 'POST',
       headers,
       body: formData,
+      mode: 'cors'
     });
     
     if (response.status === 401 || response.status === 403) {
@@ -105,6 +119,7 @@ export const uploadFile = async (file: File, onAuthError?: () => void) => {
       method: 'POST',
       headers,
       body: formData,
+      mode: 'cors'
     });
     
     if (response.status === 401 || response.status === 403) {
