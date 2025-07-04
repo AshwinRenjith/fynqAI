@@ -2,31 +2,34 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Paperclip, Mic, User, Bot } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useChat } from '@/hooks/useChat';
-import { useAuth } from '@/contexts/AuthContext';
+import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { FileManager } from './FileManager';
+import { Send, Paperclip, Sparkles, User } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useChat } from '@/hooks/useChat';
+import { sendMessageToGemini } from '@/lib/api';
+import { FileManager } from '@/components/FileManager';
 
 interface ChatInterfaceProps {
   currentSessionId: string | null;
   hasMessages: boolean;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
-  currentSessionId, 
-  hasMessages 
-}) => {
+interface Message {
+  id: string;
+  content: string;
+  is_user: boolean;
+  created_at: string;
+}
+
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMessages }) => {
   const { user } = useAuth();
   const { currentMessages, addMessage, startNewChat } = useChat();
-  const [message, setMessage] = useState('');
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,36 +39,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     scrollToBottom();
   }, [currentMessages]);
 
-  const generateAIResponse = (userMessage: string): string => {
-    // Simple AI response generator - you can replace this with actual AI integration later
-    const responses = [
-      "That's an interesting topic! Let me help you understand it better.",
-      "Great question! Let's break this down step by step.",
-      "I can help you with that. Here's what you need to know:",
-      "Let's explore this concept together. What specific aspect would you like to focus on?",
-      "That's a fundamental concept in learning. Let me explain it clearly.",
-      "I understand what you're asking. Here's a comprehensive explanation:",
-      "Excellent! This is a great opportunity to dive deeper into the subject.",
-      "Let me provide you with a detailed explanation that will help you grasp this concept."
-    ];
-    
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-    return `${randomResponse} Regarding "${userMessage}" - this is a topic that requires careful consideration. I'm here to guide you through the learning process and help you understand the key concepts. What would you like to explore further?`;
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || !user) return;
 
-  const handleSendMessage = async () => {
-    if (!message.trim()) return;
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to chat with AI tutor",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const userMessage = message.trim();
-    setMessage('');
+    const messageContent = input.trim();
+    setInput('');
     setIsLoading(true);
 
     try {
@@ -82,22 +61,29 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }
 
       // Add user message
-      await addMessage(sessionId, userMessage, true);
+      await addMessage(sessionId, messageContent, true);
 
-      // Generate and add AI response
-      const aiResponse = generateAIResponse(userMessage);
-      await addMessage(sessionId, aiResponse, false);
-
-      toast({
-        title: "Message sent! 💬",
-        description: "AI tutor has responded to your question.",
+      // Send to backend API
+      const response = await sendMessageToGemini(messageContent, undefined, () => {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to chat with AI tutor",
+          variant: "destructive",
+        });
       });
+
+      // Add AI response
+      if (response && response.response) {
+        await addMessage(sessionId, response.response, false);
+      } else {
+        throw new Error('No response from AI');
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
-        title: "Error sending message",
-        description: "Please try again in a moment.",
+        title: "Error",
+        description: "Failed to send message. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -105,146 +91,146 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateString).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
     });
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-blue-50/30 via-white/50 to-purple-50/30">
+    <div className="flex flex-col h-full bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Messages Area */}
-      <ScrollArea className="flex-1 p-6">
+      <ScrollArea className="flex-1 px-4 py-6">
         <div className="max-w-4xl mx-auto space-y-6">
-          {currentMessages.length === 0 && !hasMessages ? (
-            <div className="text-center py-20">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <Bot className="w-8 h-8 text-white" />
+          {currentMessages.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                Ready to learn?
+                Ready to learn something new?
               </h3>
-              <p className="text-gray-600">
-                Ask me anything and let's start your learning journey!
+              <p className="text-gray-600 max-w-md mx-auto">
+                Ask me anything about your studies, homework, or any topic you'd like to explore. I'm here to help you understand and learn!
               </p>
             </div>
           ) : (
-            currentMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex gap-4 animate-in slide-in-from-bottom-2 duration-500",
-                  !msg.is_user ? "justify-start" : "justify-end"
-                )}
-              >
-                {!msg.is_user && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-white" />
+            currentMessages.map((message: Message) => (
+              <div key={message.id} className={`flex ${message.is_user ? 'justify-end' : 'justify-start'}`}>
+                <div className={`flex items-start space-x-3 max-w-3xl ${message.is_user ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${
+                    message.is_user 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500' 
+                      : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                  }`}>
+                    {message.is_user ? (
+                      <User className="h-5 w-5 text-white" />
+                    ) : (
+                      <Sparkles className="h-5 w-5 text-white" />
+                    )}
                   </div>
-                )}
-                
-                <Card className={cn(
-                  "max-w-[70%] p-4 shadow-lg border-0",
-                  msg.is_user 
-                    ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white" 
-                    : "bg-white/80 backdrop-blur-sm"
-                )}>
-                  <div className="prose prose-sm max-w-none">
-                    <p className={cn(
-                      "mb-0 leading-relaxed",
-                      msg.is_user ? "text-white" : "text-gray-800"
-                    )}>
-                      {msg.content}
-                    </p>
-                  </div>
-                  <div className={cn(
-                    "text-xs mt-2 opacity-70",
-                    msg.is_user ? "text-blue-100" : "text-gray-500"
-                  )}>
-                    {formatTime(msg.created_at)}
-                  </div>
-                </Card>
 
-                {msg.is_user && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-white" />
+                  {/* Message Bubble */}
+                  <div className="relative group">
+                    <div className={`
+                      backdrop-blur-xl border border-white/30 rounded-3xl px-6 py-4 shadow-xl transition-all duration-300 hover:shadow-2xl
+                      ${message.is_user 
+                        ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 hover:from-blue-500/30 hover:to-purple-500/30' 
+                        : 'bg-white/70 hover:bg-white/80'
+                      }
+                    `}>
+                      <p className={`text-sm leading-relaxed ${
+                        message.is_user ? 'text-gray-800' : 'text-gray-700'
+                      }`}>
+                        {message.content}
+                      </p>
+                      
+                      <div className={`text-xs mt-2 opacity-60 ${
+                        message.is_user ? 'text-gray-600' : 'text-gray-500'
+                      }`}>
+                        {formatTime(message.created_at)}
+                      </div>
+                    </div>
+
+                    {/* Message indicator */}
+                    <div className={`absolute top-4 ${
+                      message.is_user ? '-left-1' : '-right-1'
+                    } w-2 h-2 bg-gradient-to-r ${
+                      message.is_user 
+                        ? 'from-blue-500 to-purple-500' 
+                        : 'from-purple-500 to-pink-500'
+                    } rounded-full opacity-70 group-hover:opacity-100 transition-opacity duration-300`}></div>
                   </div>
-                )}
+                </div>
               </div>
             ))
           )}
           
           {isLoading && (
-            <div className="flex gap-4 justify-start animate-in slide-in-from-bottom-2 duration-500">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <Card className="bg-white/80 backdrop-blur-sm p-4 shadow-lg border-0">
-                <div className="flex items-center space-x-2">
-                  <div className="flex space-x-1">
+            <div className="flex justify-start">
+              <div className="flex items-start space-x-3 max-w-3xl">
+                <div className="flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg bg-gradient-to-r from-purple-500 to-pink-500">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </div>
+                <div className="backdrop-blur-xl border border-white/30 rounded-3xl px-6 py-4 shadow-xl bg-white/70">
+                  <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                     <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                     <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
-                  <span className="text-sm text-gray-600">AI is thinking...</span>
                 </div>
-              </Card>
+              </div>
             </div>
           )}
+          
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="border-t border-white/20 bg-white/30 backdrop-blur-xl p-4">
+      <div className="border-t border-white/30 bg-white/20 backdrop-blur-xl p-4">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-end gap-3">
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFileManager(true)}
-                className="h-10 w-10 p-0 bg-white/50 hover:bg-white/70 border border-white/30"
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 bg-white/50 hover:bg-white/70 border border-white/30"
-              >
-                <Mic className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <div className="flex-1 relative">
-              <Textarea
-                ref={textareaRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask me anything about your studies..."
-                className="min-h-[44px] max-h-32 resize-none pr-12 bg-white/70 border-white/30 focus:border-purple-300 focus:ring-purple-300/20"
-                disabled={isLoading}
-              />
-            </div>
-            
-            <Button
-              onClick={handleSendMessage}
-              disabled={!message.trim() || isLoading}
-              className="h-10 w-10 p-0 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 border-0"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
+          <form onSubmit={handleSubmit} className="relative">
+            <Card className="bg-white/80 backdrop-blur-xl border-white/50 shadow-2xl">
+              <div className="flex items-end space-x-3 p-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowFileManager(true)}
+                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-xl p-2"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </Button>
+                
+                <div className="flex-1">
+                  <Textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask me anything about your studies..."
+                    className="min-h-[60px] max-h-32 resize-none border-0 bg-transparent focus:ring-0 focus:outline-none text-gray-800 placeholder:text-gray-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSubmit(e);
+                      }
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <Button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl px-6 py-3 shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <Send className="h-5 w-5" />
+                </Button>
+              </div>
+            </Card>
+          </form>
         </div>
       </div>
 

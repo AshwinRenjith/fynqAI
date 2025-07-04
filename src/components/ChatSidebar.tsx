@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { MessageCircle, Plus, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 
@@ -50,8 +50,19 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
-          {/* Header */}
+          {/* Header with close button */}
           <div className="p-4 border-b border-white/20">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-800">Chat History</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggle}
+                className="text-gray-500 hover:text-gray-700 hover:bg-white/30 rounded-xl p-2"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
             <Button
               onClick={onNewSession}
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl"
