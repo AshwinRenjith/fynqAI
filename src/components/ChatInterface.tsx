@@ -9,6 +9,7 @@ import { useChat } from '@/hooks/useChat';
 import { sendMessageToGemini } from '@/lib/api';
 import { FileManager } from '@/components/FileManager';
 import { toast } from '@/hooks/use-toast';
+import AIMessageRenderer from '@/components/AIMessageRenderer';
 
 interface ChatInterfaceProps {
   currentSessionId: string | null;
@@ -21,6 +22,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
+  const [latestMessageId, setLatestMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -91,7 +93,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
       }
 
       // Add AI response to database
-      await addMessage(sessionId, aiResponse, false);
+      const aiMessageResult = await addMessage(sessionId, aiResponse, false);
+      if (aiMessageResult) {
+        setLatestMessageId(aiMessageResult.id);
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -144,7 +149,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
   return (
     <div className="flex-1 flex flex-col">
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {currentMessages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-4">
@@ -159,22 +164,37 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
             </div>
           </div>
         ) : (
-          currentMessages.map((msg) => (
+          currentMessages.map((msg, index) => (
             <div
               key={msg.id}
               className={`flex ${msg.is_user ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[70%] p-4 rounded-2xl ${
+                className={`max-w-[80%] ${
                   msg.is_user
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                    : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl px-6 py-4'
+                    : 'bg-white border border-gray-200 text-gray-800 shadow-sm rounded-2xl px-6 py-4'
                 }`}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-                <span className="text-xs opacity-70 mt-2 block">
-                  {new Date(msg.created_at).toLocaleTimeString()}
-                </span>
+                {msg.is_user ? (
+                  <div>
+                    <p className="whitespace-pre-wrap text-white">{msg.content}</p>
+                    <span className="text-xs opacity-70 mt-2 block text-white">
+                      {new Date(msg.created_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <AIMessageRenderer 
+                      content={msg.content}
+                      isLatest={msg.id === latestMessageId && index === currentMessages.length - 1}
+                      onComplete={() => setLatestMessageId(null)}
+                    />
+                    <span className="text-xs opacity-70 mt-3 block text-gray-500">
+                      {new Date(msg.created_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -182,9 +202,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
         
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center space-x-2">
-                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+            <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 shadow-sm">
+              <div className="flex items-center space-x-3">
+                <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
                 <span className="text-gray-600">AI is thinking...</span>
               </div>
             </div>
