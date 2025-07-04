@@ -1,16 +1,10 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { MessageCircle, Plus, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface ChatSession {
-  id: string;
-  title: string;
-  lastMessage: string;
-  timestamp: Date;
-}
+import { useChat } from '@/hooks/useChat';
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -27,28 +21,10 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onSessionSelect,
   onNewSession
 }) => {
-  const [chatSessions] = useState<ChatSession[]>([
-    {
-      id: '1',
-      title: 'Physics Help',
-      lastMessage: 'Explain quantum mechanics...',
-      timestamp: new Date(Date.now() - 3600000)
-    },
-    {
-      id: '2',
-      title: 'Math Problems',
-      lastMessage: 'Solve this equation...',
-      timestamp: new Date(Date.now() - 7200000)
-    },
-    {
-      id: '3',
-      title: 'History Research',
-      lastMessage: 'Tell me about World War...',
-      timestamp: new Date(Date.now() - 86400000)
-    }
-  ]);
+  const { sessions, deleteSession } = useChat();
 
-  const formatTime = (date: Date) => {
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -74,8 +50,19 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
-          {/* Header */}
+          {/* Header with close button */}
           <div className="p-4 border-b border-white/20">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-800">Chat History</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggle}
+                className="text-gray-500 hover:text-gray-700 hover:bg-white/30 rounded-xl p-2"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
             <Button
               onClick={onNewSession}
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl"
@@ -88,40 +75,45 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           {/* Chat Sessions */}
           <ScrollArea className="flex-1 p-2">
             <div className="space-y-2">
-              {chatSessions.map((session) => (
-                <div
-                  key={session.id}
-                  onClick={() => onSessionSelect(session.id)}
-                  className={cn(
-                    "group flex items-start p-3 rounded-xl cursor-pointer transition-all duration-200 hover:bg-white/30",
-                    activeSessionId === session.id ? "bg-white/40 border border-purple-200" : "hover:shadow-lg"
-                  )}
-                >
-                  <MessageCircle className="w-4 h-4 mt-1 mr-3 text-purple-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-800 truncate text-sm">
-                      {session.title}
-                    </h3>
-                    <p className="text-xs text-gray-600 truncate mt-1">
-                      {session.lastMessage}
-                    </p>
-                    <span className="text-xs text-gray-500 mt-1 block">
-                      {formatTime(session.timestamp)}
-                    </span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Handle delete
-                    }}
-                  >
-                    <Trash2 className="w-3 h-3 text-red-400" />
-                  </Button>
+              {sessions.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">
+                  <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No chat sessions yet</p>
+                  <p className="text-xs">Start a new chat to begin!</p>
                 </div>
-              ))}
+              ) : (
+                sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    onClick={() => onSessionSelect(session.id)}
+                    className={cn(
+                      "group flex items-start p-3 rounded-xl cursor-pointer transition-all duration-200 hover:bg-white/30",
+                      activeSessionId === session.id ? "bg-white/40 border border-purple-200" : "hover:shadow-lg"
+                    )}
+                  >
+                    <MessageCircle className="w-4 h-4 mt-1 mr-3 text-purple-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-gray-800 truncate text-sm">
+                        {session.title}
+                      </h3>
+                      <span className="text-xs text-gray-500 mt-1 block">
+                        {formatTime(session.created_at)}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteSession(session.id);
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3 text-red-400" />
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           </ScrollArea>
         </div>

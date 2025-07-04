@@ -1,72 +1,103 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { toast } from '@/hooks/use-toast';
-import { sendMessageToGemini } from '@/lib/api';
+import { Textarea } from '@/components/ui/textarea';
+import { Card } from '@/components/ui/card';
+import { Send, Paperclip, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Send, AlertCircle, Image, FileText, Paperclip } from 'lucide-react';
+import { useChat } from '@/hooks/useChat';
+import { sendMessageToGemini } from '@/lib/api';
+import { FileManager } from '@/components/FileManager';
+import { toast } from '@/hooks/use-toast';
 
-const ChatInterface = () => {
-  const [message, setMessage] = useState('');
-  const [response, setResponse] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+interface ChatInterfaceProps {
+  currentSessionId: string | null;
+  hasMessages: boolean;
+}
+
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMessages }) => {
   const { user } = useAuth();
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const { currentMessages, addMessage, startNewChat } = useChat();
+  const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showFileManager, setShowFileManager] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSendMessage = async () => {
-    if (!message.trim() && !selectedFile) {
-      toast({
-        title: "Please enter a message or attach a file",
-        description: "Type a question or attach an image/document to send to the AI tutor.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to chat with the AI tutor.",
-        variant: "destructive",
-      });
-      return;
-    }
+  useEffect(() => {
+    scrollToBottom();
+  }, [currentMessages]);
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim() || isLoading || !user) return;
+
+    const userMessage = message.trim();
+    setMessage('');
     setIsLoading(true);
-    setError(null);
 
     try {
-      console.log('Sending message:', message);
-      const result = await sendMessageToGemini(message, undefined, () => {
+      // Ensure we have a session
+      let sessionId = currentSessionId;
+      if (!sessionId) {
+        const newSession = await startNewChat();
+        sessionId = newSession?.id || null;
+      }
+
+      if (!sessionId) {
         toast({
-          title: "Authentication Error",
-          description: "Please sign in again to continue.",
+          title: "Error",
+          description: "Failed to create chat session. Please try again.",
           variant: "destructive",
         });
-      });
+        setIsLoading(false);
+        return;
+      }
 
-      console.log('Received response:', result);
-      setResponse(result.response);
-      setMessage('');
-      setSelectedFile(null);
-      
-      toast({
-        title: "Message sent! 🎉",
-        description: "AI tutor has responded to your question.",
-      });
-    } catch (error: any) {
+      // Add user message to database
+      await addMessage(sessionId, userMessage, true);
+
+      // Try to get AI response from backend
+      let aiResponse = '';
+      try {
+        console.log('Sending message to backend:', userMessage);
+        const response = await sendMessageToGemini(userMessage);
+        console.log('Backend response:', response);
+        
+        aiResponse = response.response || 'I apologize, but I received an empty response. Could you please rephrase your question?';
+        
+        if (response.status === 'offline_mode' || response.status === 'fallback') {
+          toast({
+            title: "Backend Issue",
+            description: "Using fallback responses. Please check your backend configuration.",
+            variant: "destructive",
+          });
+        }
+      } catch (apiError) {
+        console.error('Backend API error:', apiError);
+        
+        // Improved fallback response
+        aiResponse = generateFallbackResponse(userMessage);
+        
+        toast({
+          title: "Backend Unavailable",
+          description: "Using offline mode. Please check your backend server and CORS configuration.",
+          variant: "destructive",
+        });
+      }
+
+      // Add AI response to database
+      await addMessage(sessionId, aiResponse, false);
+
+    } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = error.message || 'Failed to send message';
-      setError(errorMessage);
-      
       toast({
-        title: "Error sending message",
-        description: errorMessage,
+        title: "Error",
+        description: "Failed to send message. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -74,175 +105,135 @@ const ChatInterface = () => {
     }
   };
 
+  const generateFallbackResponse = (userMessage: string): string => {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    if (lowerMessage.includes('math') || lowerMessage.includes('equation') || lowerMessage.includes('solve')) {
+      return "I'd be happy to help you with math! However, I'm currently running in offline mode due to backend connectivity issues. To get detailed mathematical solutions and step-by-step explanations, please ensure your FastAPI backend is running and properly configured with CORS settings.";
+    }
+    
+    if (lowerMessage.includes('science') || lowerMessage.includes('chemistry') || lowerMessage.includes('physics')) {
+      return "Science questions are fascinating! I'm currently in offline mode due to backend connectivity issues. Please check your FastAPI backend server and CORS configuration for comprehensive science tutoring capabilities.";
+    }
+    
+    if (lowerMessage.includes('help') || lowerMessage.includes('study')) {
+      return "I'm here to help with your studies! Currently running in offline mode due to backend connectivity issues. Please ensure your FastAPI backend is running on port 8000 with proper CORS configuration for full AI tutoring capabilities.";
+    }
+    
+    return "Hello! I'm your AI tutor, but I'm currently running in offline mode due to backend connectivity issues. To unlock my full potential for personalized learning, detailed explanations, and interactive problem-solving, please check that your FastAPI backend is running and properly configured with CORS settings.";
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleSubmit(e);
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setSelectedFile(file);
-      toast({
-        title: "Image attached",
-        description: `${file.name} is ready to be sent.`,
-      });
-    } else {
-      toast({
-        title: "Invalid file type",
-        description: "Please select a valid image file.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const allowedTypes = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (allowedTypes.includes(file.type)) {
-        setSelectedFile(file);
-        toast({
-          title: "Document attached",
-          description: `${file.name} is ready to be processed.`,
-        });
-      } else {
-        toast({
-          title: "Invalid file type",
-          description: "Please select a PDF, DOC, DOCX, or TXT file.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const removeFile = () => {
-    setSelectedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (imageInputRef.current) imageInputRef.current.value = '';
-  };
+  if (!user) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
+          <p className="text-gray-600">Please sign in to chat with your AI tutor.</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {error && (
-          <div className="p-4 bg-red-100 border border-red-300 rounded-2xl flex items-center space-x-2 text-red-700">
-            <AlertCircle className="h-5 w-5" />
-            <div>
-              <p className="font-medium">Connection Error</p>
-              <p className="text-sm">{error}</p>
-              <p className="text-xs mt-1">Make sure the backend server is running on http://localhost:8000</p>
+    <div className="flex-1 flex flex-col">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {currentMessages.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto">
+                <span className="text-2xl text-white">🤖</span>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800">Ready to Learn!</h3>
+              <p className="text-gray-600 max-w-md">
+                Ask me anything about math, science, or any subject you're studying. 
+                I'm here to help you understand and learn!
+              </p>
+            </div>
+          </div>
+        ) : (
+          currentMessages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex ${msg.is_user ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[70%] p-4 rounded-2xl ${
+                  msg.is_user
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                    : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
+                }`}
+              >
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <span className="text-xs opacity-70 mt-2 block">
+                  {new Date(msg.created_at).toLocaleTimeString()}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+        
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                <span className="text-gray-600">AI is thinking...</span>
+              </div>
             </div>
           </div>
         )}
-
-        {response && (
-          <div className="bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl p-6 shadow-lg">
-            <div className="prose prose-gray max-w-none">
-              <p className="text-gray-700 whitespace-pre-wrap">{response}</p>
-            </div>
-          </div>
-        )}
+        
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Chat Input Area */}
-      <div className="p-6 bg-white/10 backdrop-blur-xl border-t border-white/20">
-        <div className="max-w-4xl mx-auto">
-          {/* File Attachment Preview */}
-          {selectedFile && (
-            <div className="mb-4 p-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                {selectedFile.type.startsWith('image/') ? (
-                  <Image className="h-5 w-5 text-purple-500" />
-                ) : (
-                  <FileText className="h-5 w-5 text-blue-500" />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{selectedFile.name}</p>
-                  <p className="text-xs text-gray-600">{(selectedFile.size / 1024).toFixed(1)} KB</p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={removeFile}
-                className="text-red-500 hover:text-red-700"
-              >
-                Remove
-              </Button>
-            </div>
-          )}
-
-          {/* Input Area */}
-          <div className="bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl p-4 shadow-lg">
-            <div className="flex items-end space-x-3">
-              {/* Attachment Buttons */}
-              <div className="flex space-x-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => imageInputRef.current?.click()}
-                  className="text-purple-500 hover:text-purple-700 hover:bg-purple-100/50 rounded-xl"
-                  disabled={isLoading}
-                >
-                  <Image className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-blue-500 hover:text-blue-700 hover:bg-blue-100/50 rounded-xl"
-                  disabled={isLoading}
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
-              </div>
-
-              {/* Text Input */}
-              <Input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask me anything about your studies..."
-                disabled={isLoading}
-                className="flex-1 bg-white/50 backdrop-blur-sm border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-purple-300 resize-none min-h-[44px]"
-              />
-
-              {/* Send Button */}
-              <Button
-                onClick={handleSendMessage}
-                disabled={isLoading || (!message.trim() && !selectedFile)}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-2xl px-6 py-3 transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
-              </Button>
-            </div>
+      {/* Input Area */}
+      <div className="p-4 bg-white border-t">
+        <form onSubmit={handleSubmit} className="flex items-end space-x-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFileManager(true)}
+            className="mb-2"
+          >
+            <Paperclip className="w-4 h-4" />
+          </Button>
+          
+          <div className="flex-1">
+            <Textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask me anything about your studies..."
+              className="min-h-[60px] max-h-32 resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+              disabled={isLoading}
+            />
           </div>
-
-          {/* Hidden File Inputs */}
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.txt"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-        </div>
+          
+          <Button
+            type="submit"
+            disabled={!message.trim() || isLoading}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 mb-2"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </form>
       </div>
+
+      {/* File Manager Modal */}
+      <FileManager
+        isOpen={showFileManager}
+        onClose={() => setShowFileManager(false)}
+      />
     </div>
   );
 };

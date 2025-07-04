@@ -2,9 +2,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import ChatInterface from "@/components/ChatInterface";
 import ChatSidebar from "@/components/ChatSidebar";
+import { WelcomeMessage } from "@/components/WelcomeMessage";
+import { Survey } from "@/components/Survey";
+import { BackendStatus } from "@/components/BackendStatus";
+import { useChat } from "@/hooks/useChat";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 
@@ -12,7 +17,84 @@ const Index = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState<string>('1');
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [showSurvey, setShowSurvey] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const { 
+    currentSessionId, 
+    currentMessages, 
+    switchToSession, 
+    startNewChat 
+  } = useChat();
+
+  // Load user profile and check survey status
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (!user) return;
+      
+      try {
+        // Get user profile - use maybeSingle() to avoid PGRST116 error
+        let { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // If no profile exists, create one
+        if (!profile && !profileError) {
+          console.log('No profile found, creating one...');
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([{
+              user_id: user.id,
+              username: user.email?.split('@')[0] || 'user',
+              first_name: user.user_metadata?.first_name || '',
+              last_name: user.user_metadata?.last_name || ''
+            }])
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
+          } else {
+            profile = newProfile;
+            console.log('Profile created successfully:', profile);
+          }
+        }
+
+        if (profileError) {
+          console.error('Error loading profile:', profileError);
+          return;
+        }
+
+        setUserProfile(profile);
+
+        // Check if user has completed survey - use maybeSingle() here too
+        const { data: survey, error: surveyError } = await supabase
+          .from('survey_responses')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (surveyError) {
+          console.error('Error checking survey:', surveyError);
+          return;
+        }
+
+        if (!survey) {
+          setShowSurvey(true);
+        } else if (!currentSessionId || currentMessages.length === 0) {
+          setShowWelcome(true);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+
+    if (user && !loading) {
+      loadUserProfile();
+    }
+  }, [user, loading, currentSessionId, currentMessages.length]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,16 +114,31 @@ const Index = () => {
     return null; // Will redirect to auth
   }
 
-  const handleSessionSelect = (sessionId: string) => {
-    setActiveSessionId(sessionId);
-    setSidebarOpen(false); // Close sidebar on mobile after selection
+  // Show survey if not completed
+  if (showSurvey) {
+    return <Survey onComplete={() => setShowSurvey(false)} />;
+  }
+
+  const handleSessionSelect = async (sessionId: string) => {
+    await switchToSession(sessionId);
+    setSidebarOpen(false);
+    setShowWelcome(false);
   };
 
-  const handleNewSession = () => {
-    const newSessionId = `session-${Date.now()}`;
-    setActiveSessionId(newSessionId);
+  const handleNewSession = async () => {
+    await startNewChat();
     setSidebarOpen(false);
+    setShowWelcome(false);
   };
+
+  const handleStartChat = () => {
+    setShowWelcome(false);
+    if (!currentSessionId) {
+      handleNewSession();
+    }
+  };
+
+  const isNewChat = !currentSessionId || currentMessages.length === 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -63,16 +160,42 @@ const Index = () => {
         <ChatSidebar
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
-          activeSessionId={activeSessionId}
+          activeSessionId={currentSessionId || undefined}
           onSessionSelect={handleSessionSelect}
           onNewSession={handleNewSession}
         />
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col">
-          <ChatInterface />
+        <div className="flex-1 flex flex-col relative">
+          {/* Welcome Message Overlay */}
+          {showWelcome && userProfile?.username && isNewChat && (
+            <div 
+              className="absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-br from-blue-50/80 via-white/80 to-purple-50/80 backdrop-blur-sm transition-opacity duration-500"
+              onClick={handleStartChat}
+            >
+              <div className="text-center space-y-8 p-8 cursor-pointer">
+                <WelcomeMessage 
+                  username={userProfile.username}
+                  onAnimationComplete={() => {
+                    // Optional: Auto-hide after animation complete
+                  }}
+                />
+                <p className="text-gray-500 text-sm animate-pulse">
+                  Click anywhere to start chatting
+                </p>
+              </div>
+            </div>
+          )}
+
+          <ChatInterface 
+            currentSessionId={currentSessionId}
+            hasMessages={currentMessages.length > 0}
+          />
         </div>
       </div>
+
+      {/* Backend Status Indicator */}
+      <BackendStatus />
     </div>
   );
 };

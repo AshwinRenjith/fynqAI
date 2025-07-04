@@ -9,7 +9,183 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      chat_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          file_id: string | null
+          id: string
+          is_user: boolean
+          session_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          is_user?: boolean
+          session_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          is_user?: boolean
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      survey_responses: {
+        Row: {
+          challenging_subject: string
+          created_at: string
+          feedback_preference: string
+          gamification_preference: string
+          id: string
+          learning_approach: string
+          lesson_preference: string
+          math_hurdle: string
+          mistake_reaction: string
+          revision_method: string
+          study_time: string
+          summary: string | null
+          understanding_check: string
+          user_id: string
+        }
+        Insert: {
+          challenging_subject: string
+          created_at?: string
+          feedback_preference: string
+          gamification_preference: string
+          id?: string
+          learning_approach: string
+          lesson_preference: string
+          math_hurdle: string
+          mistake_reaction: string
+          revision_method: string
+          study_time: string
+          summary?: string | null
+          understanding_check: string
+          user_id: string
+        }
+        Update: {
+          challenging_subject?: string
+          created_at?: string
+          feedback_preference?: string
+          gamification_preference?: string
+          id?: string
+          learning_approach?: string
+          lesson_preference?: string
+          math_hurdle?: string
+          mistake_reaction?: string
+          revision_method?: string
+          study_time?: string
+          summary?: string | null
+          understanding_check?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      uploaded_files: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
