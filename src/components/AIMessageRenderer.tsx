@@ -102,18 +102,19 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
               {children}
             </li>
           ),
-          // Custom code styling - Fixed the inline property issue
-          code: ({ node, inline, className, children, ...props }) => {
+          // Custom code styling - Fixed TypeScript error by using any type for props
+          code: ({ children, ...props }: any) => {
+            const { inline } = props;
             if (inline) {
               return (
-                <code className="bg-gray-100 text-purple-600 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                <code className="bg-gray-100 text-purple-600 px-1.5 py-0.5 rounded text-sm font-mono">
                   {children}
                 </code>
               );
             }
             return (
               <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto mb-3">
-                <code className="text-sm font-mono text-gray-800" {...props}>
+                <code className="text-sm font-mono text-gray-800">
                   {children}
                 </code>
               </pre>
