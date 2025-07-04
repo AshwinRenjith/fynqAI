@@ -1,97 +1,103 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { toast } from '@/hooks/use-toast';
-import { sendMessageToGemini } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { useChat } from '@/hooks/useChat';
-import { FileManager } from '@/components/FileManager';
-import { Send, AlertCircle, Image, FileText, Paperclip, FolderOpen } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { Textarea } from '@/components/ui/textarea';
+import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Send, Paperclip, Mic, User, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useChat } from '@/hooks/useChat';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
+import { FileManager } from './FileManager';
 
 interface ChatInterfaceProps {
   currentSessionId: string | null;
   hasMessages: boolean;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMessages }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+  currentSessionId, 
+  hasMessages 
+}) => {
+  const { user } = useAuth();
+  const { currentMessages, addMessage, startNewChat } = useChat();
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
-  const { user } = useAuth();
-  const { currentMessages, addMessage } = useChat();
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
   }, [currentMessages]);
 
-  // Expand/contract input based on interaction
-  useEffect(() => {
-    setIsExpanded(hasMessages || message.length > 0 || selectedFile !== null);
-  }, [hasMessages, message, selectedFile]);
+  const generateAIResponse = (userMessage: string): string => {
+    // Simple AI response generator - you can replace this with actual AI integration later
+    const responses = [
+      "That's an interesting topic! Let me help you understand it better.",
+      "Great question! Let's break this down step by step.",
+      "I can help you with that. Here's what you need to know:",
+      "Let's explore this concept together. What specific aspect would you like to focus on?",
+      "That's a fundamental concept in learning. Let me explain it clearly.",
+      "I understand what you're asking. Here's a comprehensive explanation:",
+      "Excellent! This is a great opportunity to dive deeper into the subject.",
+      "Let me provide you with a detailed explanation that will help you grasp this concept."
+    ];
+    
+    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    return `${randomResponse} Regarding "${userMessage}" - this is a topic that requires careful consideration. I'm here to guide you through the learning process and help you understand the key concepts. What would you like to explore further?`;
+  };
 
   const handleSendMessage = async () => {
-    if (!message.trim() && !selectedFile) {
-      toast({
-        title: "Please enter a message or attach a file",
-        description: "Type a question or attach an image/document to send to the AI tutor.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!user || !currentSessionId) {
+    if (!message.trim()) return;
+    if (!user) {
       toast({
         title: "Authentication required",
-        description: "Please sign in to chat with the AI tutor.",
+        description: "Please sign in to chat with AI tutor",
         variant: "destructive",
       });
       return;
     }
 
+    const userMessage = message.trim();
+    setMessage('');
     setIsLoading(true);
-    setError(null);
 
     try {
-      // Add user message to database
-      await addMessage(currentSessionId, message, true);
-
-      // Send to AI and get response
-      const result = await sendMessageToGemini(message, undefined, () => {
-        toast({
-          title: "Authentication Error",
-          description: "Please sign in again to continue.",
-          variant: "destructive",
-        });
-      });
-
-      // Add AI response to database
-      await addMessage(currentSessionId, result.response, false);
-
-      setMessage('');
-      setSelectedFile(null);
+      let sessionId = currentSessionId;
       
+      // Create new session if none exists
+      if (!sessionId) {
+        const newSession = await startNewChat();
+        sessionId = newSession?.id || null;
+      }
+
+      if (!sessionId) {
+        throw new Error('Failed to create chat session');
+      }
+
+      // Add user message
+      await addMessage(sessionId, userMessage, true);
+
+      // Generate and add AI response
+      const aiResponse = generateAIResponse(userMessage);
+      await addMessage(sessionId, aiResponse, false);
+
       toast({
-        title: "Message sent! 🎉",
+        title: "Message sent! 💬",
         description: "AI tutor has responded to your question.",
       });
-    } catch (error: any) {
+
+    } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = error.message || 'Failed to send message';
-      setError(errorMessage);
-      
       toast({
         title: "Error sending message",
-        description: errorMessage,
+        description: "Please try again in a moment.",
         variant: "destructive",
       });
     } finally {
@@ -106,208 +112,139 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setSelectedFile(file);
-      toast({
-        title: "Image attached",
-        description: `${file.name} is ready to be sent.`,
-      });
-    } else {
-      toast({
-        title: "Invalid file type",
-        description: "Please select a valid image file.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const allowedTypes = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (allowedTypes.includes(file.type)) {
-        setSelectedFile(file);
-        toast({
-          title: "Document attached",
-          description: `${file.name} is ready to be processed.`,
-        });
-      } else {
-        toast({
-          title: "Invalid file type",
-          description: "Please select a PDF, DOC, DOCX, or TXT file.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const removeFile = () => {
-    setSelectedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (imageInputRef.current) imageInputRef.current.value = '';
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {error && (
-            <div className="p-4 bg-red-100 border border-red-300 rounded-2xl flex items-center space-x-2 text-red-700">
-              <AlertCircle className="h-5 w-5" />
-              <div>
-                <p className="font-medium">Connection Error</p>
-                <p className="text-sm">{error}</p>
-                <p className="text-xs mt-1">Make sure the backend server is running on http://localhost:8000</p>
+    <div className="flex flex-col h-full bg-gradient-to-br from-blue-50/30 via-white/50 to-purple-50/30">
+      {/* Messages Area */}
+      <ScrollArea className="flex-1 p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {currentMessages.length === 0 && !hasMessages ? (
+            <div className="text-center py-20">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <Bot className="w-8 h-8 text-white" />
               </div>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                Ready to learn?
+              </h3>
+              <p className="text-gray-600">
+                Ask me anything and let's start your learning journey!
+              </p>
             </div>
-          )}
-
-          {currentMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex w-full",
-                msg.is_user ? "justify-end" : "justify-start"
-              )}
-            >
+          ) : (
+            currentMessages.map((msg) => (
               <div
+                key={msg.id}
                 className={cn(
-                  "max-w-[80%] p-4 rounded-2xl shadow-lg",
-                  msg.is_user
-                    ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                    : "bg-white/90 backdrop-blur-xl border border-white/30 text-gray-800"
+                  "flex gap-4 animate-in slide-in-from-bottom-2 duration-500",
+                  !msg.is_user ? "justify-start" : "justify-end"
                 )}
               >
-                {msg.is_user ? (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                ) : (
-                  <div className="prose prose-gray max-w-none prose-sm">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                {!msg.is_user && (
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                
+                <Card className={cn(
+                  "max-w-[70%] p-4 shadow-lg border-0",
+                  msg.is_user 
+                    ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white" 
+                    : "bg-white/80 backdrop-blur-sm"
+                )}>
+                  <div className="prose prose-sm max-w-none">
+                    <p className={cn(
+                      "mb-0 leading-relaxed",
+                      msg.is_user ? "text-white" : "text-gray-800"
+                    )}>
+                      {msg.content}
+                    </p>
+                  </div>
+                  <div className={cn(
+                    "text-xs mt-2 opacity-70",
+                    msg.is_user ? "text-blue-100" : "text-gray-500"
+                  )}>
+                    {formatTime(msg.created_at)}
+                  </div>
+                </Card>
+
+                {msg.is_user && (
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="w-4 h-4 text-white" />
                   </div>
                 )}
               </div>
+            ))
+          )}
+          
+          {isLoading && (
+            <div className="flex gap-4 justify-start animate-in slide-in-from-bottom-2 duration-500">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              <Card className="bg-white/80 backdrop-blur-sm p-4 shadow-lg border-0">
+                <div className="flex items-center space-x-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                  <span className="text-sm text-gray-600">AI is thinking...</span>
+                </div>
+              </Card>
             </div>
-          ))}
+          )}
           <div ref={messagesEndRef} />
         </div>
-      </div>
+      </ScrollArea>
 
-      {/* Chat Input Area */}
-      <div 
-        className={cn(
-          "p-4 bg-white/10 backdrop-blur-xl border-t border-white/20 transition-all duration-300",
-          isExpanded ? "pb-6" : "pb-4"
-        )}
-      >
+      {/* Input Area */}
+      <div className="border-t border-white/20 bg-white/30 backdrop-blur-xl p-4">
         <div className="max-w-4xl mx-auto">
-          {/* File Attachment Preview */}
-          {selectedFile && (
-            <div className="mb-4 p-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                {selectedFile.type.startsWith('image/') ? (
-                  <Image className="h-4 w-4 text-purple-500" />
-                ) : (
-                  <FileText className="h-4 w-4 text-blue-500" />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{selectedFile.name}</p>
-                  <p className="text-xs text-gray-600">{(selectedFile.size / 1024).toFixed(1)} KB</p>
-                </div>
-              </div>
+          <div className="flex items-end gap-3">
+            <div className="flex gap-2">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={removeFile}
-                className="text-red-500 hover:text-red-700"
+                onClick={() => setShowFileManager(true)}
+                className="h-10 w-10 p-0 bg-white/50 hover:bg-white/70 border border-white/30"
               >
-                Remove
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 w-10 p-0 bg-white/50 hover:bg-white/70 border border-white/30"
+              >
+                <Mic className="h-4 w-4" />
               </Button>
             </div>
-          )}
-
-          {/* Input Area */}
-          <div 
-            className={cn(
-              "bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl p-3 shadow-lg transition-all duration-300",
-              isExpanded ? "scale-100" : "scale-95"
-            )}
-          >
-            <div className="flex items-end space-x-3">
-              {/* Attachment Buttons */}
-              <div className="flex space-x-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => imageInputRef.current?.click()}
-                  className="text-purple-500 hover:text-purple-700 hover:bg-purple-100/50 rounded-xl p-2"
-                  disabled={isLoading}
-                >
-                  <Image className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-blue-500 hover:text-blue-700 hover:bg-blue-100/50 rounded-xl p-2"
-                  disabled={isLoading}
-                >
-                  <Paperclip className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowFileManager(true)}
-                  className="text-green-500 hover:text-green-700 hover:bg-green-100/50 rounded-xl p-2"
-                  disabled={isLoading}
-                >
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Text Input */}
-              <Input
+            
+            <div className="flex-1 relative">
+              <Textarea
+                ref={textareaRef}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                onFocus={() => setIsExpanded(true)}
                 placeholder="Ask me anything about your studies..."
+                className="min-h-[44px] max-h-32 resize-none pr-12 bg-white/70 border-white/30 focus:border-purple-300 focus:ring-purple-300/20"
                 disabled={isLoading}
-                className="flex-1 bg-white/50 backdrop-blur-sm border-0 rounded-2xl px-4 py-2 focus:ring-2 focus:ring-purple-300 resize-none"
               />
-
-              {/* Send Button */}
-              <Button
-                onClick={handleSendMessage}
-                disabled={isLoading || (!message.trim() && !selectedFile)}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-2xl px-4 py-2 transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
             </div>
+            
+            <Button
+              onClick={handleSendMessage}
+              disabled={!message.trim() || isLoading}
+              className="h-10 w-10 p-0 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 border-0"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
           </div>
-
-          {/* Hidden File Inputs */}
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.txt"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
         </div>
       </div>
 
@@ -315,13 +252,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
       <FileManager
         isOpen={showFileManager}
         onClose={() => setShowFileManager(false)}
-        onFileSelect={(file) => {
-          toast({
-            title: "File selected",
-            description: `${file.file_name} will be used for context.`,
-          });
-          setShowFileManager(false);
-        }}
       />
     </div>
   );
