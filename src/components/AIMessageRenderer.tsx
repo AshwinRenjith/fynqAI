@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -20,28 +21,40 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
   const indexRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const hasStartedRef = useRef(false);
+  const isCompletedRef = useRef(false);
+  const contentRef = useRef('');
+  const animationActiveRef = useRef(false);
 
   useEffect(() => {
-    if (isLatest && content && !hasStartedRef.current) {
+    // Only start animation if this is the latest message and we haven't started before
+    if (isLatest && content && !hasStartedRef.current && content !== contentRef.current) {
       hasStartedRef.current = true;
+      contentRef.current = content;
+      isCompletedRef.current = false;
+      animationActiveRef.current = true;
       setIsTyping(true);
-      setDisplayedContent(''); // Ensure empty start
+      setDisplayedContent(''); // Start with empty content
       indexRef.current = 0;
       
-      const typewriterSpeed = 8; // Even faster speed
+      const typewriterSpeed = 10; // Very fast speed
       
       const typeNextCharacter = () => {
-        if (indexRef.current < content.length) {
-          setDisplayedContent(content.slice(0, indexRef.current + 1));
+        // Check if animation should continue
+        if (!animationActiveRef.current) return;
+        
+        if (indexRef.current < contentRef.current.length) {
+          setDisplayedContent(contentRef.current.slice(0, indexRef.current + 1));
           indexRef.current++;
           timerRef.current = setTimeout(typeNextCharacter, typewriterSpeed);
         } else {
           setIsTyping(false);
+          isCompletedRef.current = true;
+          animationActiveRef.current = false;
           onComplete?.();
         }
       };
 
-      // Start immediately without delay
+      // Start immediately
       timerRef.current = setTimeout(typeNextCharacter, typewriterSpeed);
 
       return () => {
@@ -49,20 +62,37 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
           clearTimeout(timerRef.current);
         }
       };
-    } else if (!isLatest) {
+    } else if (!isLatest && content) {
       // For older messages, show immediately
       setDisplayedContent(content);
       setIsTyping(false);
       hasStartedRef.current = false;
+      isCompletedRef.current = true;
+      animationActiveRef.current = false;
     }
   }, [content, isLatest, onComplete]);
 
-  // Reset when content changes completely
+  // Prevent any external re-renders from affecting the animation
   useEffect(() => {
-    if (isLatest) {
-      hasStartedRef.current = false;
+    // If content changes completely (new message), reset everything
+    if (content !== contentRef.current && content) {
+      if (isLatest) {
+        hasStartedRef.current = false;
+        isCompletedRef.current = false;
+        animationActiveRef.current = false;
+      }
     }
-  }, [content]);
+  }, [content, isLatest]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      animationActiveRef.current = false;
+    };
+  }, []);
 
   return (
     <div className="prose prose-sm max-w-none">
