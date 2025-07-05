@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -20,34 +19,21 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const indexRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const isVisibleRef = useRef(true);
-
-  // Track page visibility to pause/resume animation
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      isVisibleRef.current = !document.hidden;
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+  const hasStartedRef = useRef(false);
 
   useEffect(() => {
-    if (isLatest && content) {
+    if (isLatest && content && !hasStartedRef.current) {
+      hasStartedRef.current = true;
       setIsTyping(true);
-      setDisplayedContent(''); // Start with empty to prevent spoiler
+      setDisplayedContent(''); // Ensure empty start
       indexRef.current = 0;
       
-      const typewriterSpeed = 15; // Increased speed (reduced from 30ms to 15ms)
+      const typewriterSpeed = 8; // Even faster speed
       
       const typeNextCharacter = () => {
         if (indexRef.current < content.length) {
-          // Only continue if page is visible
-          if (isVisibleRef.current) {
-            setDisplayedContent(content.slice(0, indexRef.current + 1));
-            indexRef.current++;
-          }
-          
+          setDisplayedContent(content.slice(0, indexRef.current + 1));
+          indexRef.current++;
           timerRef.current = setTimeout(typeNextCharacter, typewriterSpeed);
         } else {
           setIsTyping(false);
@@ -55,6 +41,7 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
         }
       };
 
+      // Start immediately without delay
       timerRef.current = setTimeout(typeNextCharacter, typewriterSpeed);
 
       return () => {
@@ -62,12 +49,20 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
           clearTimeout(timerRef.current);
         }
       };
-    } else {
+    } else if (!isLatest) {
       // For older messages, show immediately
       setDisplayedContent(content);
       setIsTyping(false);
+      hasStartedRef.current = false;
     }
   }, [content, isLatest, onComplete]);
+
+  // Reset when content changes completely
+  useEffect(() => {
+    if (isLatest) {
+      hasStartedRef.current = false;
+    }
+  }, [content]);
 
   return (
     <div className="prose prose-sm max-w-none">
@@ -75,7 +70,6 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
         remarkPlugins={[remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          // Custom heading styles
           h1: ({ children }) => (
             <h1 className="text-xl font-bold text-gray-800 mb-3 mt-4 first:mt-0">
               {children}
@@ -91,7 +85,6 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
               {children}
             </h3>
           ),
-          // Custom paragraph styling
           p: ({ children }) => (
             <p className="text-gray-700 leading-relaxed mb-3 last:mb-0">
               {children}
@@ -122,7 +115,6 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
               {children}
             </li>
           ),
-          // Custom code styling - Fixed TypeScript error by using any type for props
           code: ({ children, ...props }: any) => {
             const { inline } = props;
             if (inline) {
@@ -140,7 +132,6 @@ const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({
               </pre>
             );
           },
-          // Custom blockquote styling
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-purple-300 pl-4 py-2 bg-purple-50 mb-3 italic text-gray-700">
               {children}
