@@ -2,13 +2,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
-import { Send, Paperclip, Loader2 } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Send, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/hooks/useChat';
-import { sendMessageToGemini } from '@/lib/api';
-import { FileManager } from '@/components/FileManager';
+import { sendMessageToGemini, uploadImageToGemini } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
+import AIMessageRenderer from './AIMessageRenderer';
 
 interface ChatInterfaceProps {
   currentSessionId: string | null;
@@ -18,81 +18,63 @@ interface ChatInterfaceProps {
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMessages }) => {
   const { user } = useAuth();
   const { currentMessages, addMessage, startNewChat } = useChat();
-  const [message, setMessage] = useState('');
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showFileManager, setShowFileManager] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    scrollToBottom();
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
   }, [currentMessages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || isLoading || !user) return;
+    if ((!input.trim() && !selectedImage) || isLoading) return;
 
-    const userMessage = message.trim();
-    setMessage('');
+    let sessionId = currentSessionId;
+    
+    // Create new session if none exists
+    if (!sessionId) {
+      const newSession = await startNewChat();
+      if (!newSession) {
+        toast({
+          title: "Error",
+          description: "Failed to create new chat session",
+          variant: "destructive",
+        });
+        return;
+      }
+      sessionId = newSession.id;
+    }
+
+    const messageText = input.trim() || 'Image uploaded';
+    setInput('');
     setIsLoading(true);
 
     try {
-      // Ensure we have a session
-      let sessionId = currentSessionId;
-      if (!sessionId) {
-        const newSession = await startNewChat();
-        sessionId = newSession?.id || null;
+      // Add user message
+      await addMessage(sessionId, messageText, true);
+
+      let response;
+      if (selectedImage) {
+        response = await uploadImageToGemini(selectedImage, messageText);
+        setSelectedImage(null);
+      } else {
+        response = await sendMessageToGemini(messageText);
       }
 
-      if (!sessionId) {
-        toast({
-          title: "Error",
-          description: "Failed to create chat session. Please try again.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
+      // Add AI response
+      if (response?.response) {
+        await addMessage(sessionId, response.response, false);
       }
-
-      // Add user message to database
-      await addMessage(sessionId, userMessage, true);
-
-      // Try to get AI response from backend
-      let aiResponse = '';
-      try {
-        console.log('Sending message to backend:', userMessage);
-        const response = await sendMessageToGemini(userMessage);
-        console.log('Backend response:', response);
-        
-        aiResponse = response.response || 'I apologize, but I received an empty response. Could you please rephrase your question?';
-        
-        if (response.status === 'offline_mode' || response.status === 'fallback') {
-          toast({
-            title: "Backend Issue",
-            description: "Using fallback responses. Please check your backend configuration.",
-            variant: "destructive",
-          });
-        }
-      } catch (apiError) {
-        console.error('Backend API error:', apiError);
-        
-        // Improved fallback response
-        aiResponse = generateFallbackResponse(userMessage);
-        
-        toast({
-          title: "Backend Unavailable",
-          description: "Using offline mode. Please check your backend server and CORS configuration.",
-          variant: "destructive",
-        });
-      }
-
-      // Add AI response to database
-      await addMessage(sessionId, aiResponse, false);
-
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -105,24 +87,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     }
   };
 
-  const generateFallbackResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes('math') || lowerMessage.includes('equation') || lowerMessage.includes('solve')) {
-      return "I'd be happy to help you with math! However, I'm currently running in offline mode due to backend connectivity issues. To get detailed mathematical solutions and step-by-step explanations, please ensure your FastAPI backend is running and properly configured with CORS settings.";
-    }
-    
-    if (lowerMessage.includes('science') || lowerMessage.includes('chemistry') || lowerMessage.includes('physics')) {
-      return "Science questions are fascinating! I'm currently in offline mode due to backend connectivity issues. Please check your FastAPI backend server and CORS configuration for comprehensive science tutoring capabilities.";
-    }
-    
-    if (lowerMessage.includes('help') || lowerMessage.includes('study')) {
-      return "I'm here to help with your studies! Currently running in offline mode due to backend connectivity issues. Please ensure your FastAPI backend is running on port 8000 with proper CORS configuration for full AI tutoring capabilities.";
-    }
-    
-    return "Hello! I'm your AI tutor, but I'm currently running in offline mode due to backend connectivity issues. To unlock my full potential for personalized learning, detailed explanations, and interactive problem-solving, please check that your FastAPI backend is running and properly configured with CORS settings.";
-  };
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -130,110 +94,151 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     }
   };
 
-  if (!user) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
-          <p className="text-gray-600">Please sign in to chat with your AI tutor.</p>
-        </Card>
-      </div>
-    );
-  }
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      setSelectedImage(file);
+    }
+  };
+
+  if (!user) return null;
 
   return (
-    <div className="flex-1 flex flex-col">
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {currentMessages.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto">
-                <span className="text-2xl text-white">🤖</span>
+    <div className="flex flex-col h-full">
+      {/* Chat Messages Area */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea ref={scrollAreaRef} className="h-full px-4 py-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {currentMessages.length === 0 && !hasMessages ? (
+              <div className="text-center text-gray-500 py-12">
+                <p className="text-lg mb-2">Start a conversation</p>
+                <p className="text-sm">Ask me anything about your studies!</p>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800">Ready to Learn!</h3>
-              <p className="text-gray-600 max-w-md">
-                Ask me anything about math, science, or any subject you're studying. 
-                I'm here to help you understand and learn!
-              </p>
-            </div>
+            ) : (
+              currentMessages.map((message, index) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.is_user ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-6 py-4 ${
+                      message.is_user
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white ml-auto'
+                        : 'bg-white/70 backdrop-blur-sm border border-white/30 shadow-lg'
+                    }`}
+                  >
+                    {message.is_user ? (
+                      <p className="text-white leading-relaxed whitespace-pre-wrap">
+                        {message.content}
+                      </p>
+                    ) : (
+                      <AIMessageRenderer
+                        content={message.content}
+                        isLatest={index === currentMessages.length - 1}
+                        onComplete={() => {
+                          // Optional: Handle completion
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+            
+            {/* Loading indicator */}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white/70 backdrop-blur-sm border border-white/30 shadow-lg rounded-2xl px-6 py-4">
+                  <div className="flex items-center space-x-2 text-gray-600">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        ) : (
-          currentMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.is_user ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[70%] p-4 rounded-2xl ${
-                  msg.is_user
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                    : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-                <span className="text-xs opacity-70 mt-2 block">
-                  {new Date(msg.created_at).toLocaleTimeString()}
-                </span>
-              </div>
-            </div>
-          ))
-        )}
-        
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center space-x-2">
-                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                <span className="text-gray-600">AI is thinking...</span>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        <div ref={messagesEndRef} />
+        </ScrollArea>
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t">
-        <form onSubmit={handleSubmit} className="flex items-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFileManager(true)}
-            className="mb-2"
-          >
-            <Paperclip className="w-4 h-4" />
-          </Button>
-          
-          <div className="flex-1">
-            <Textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask me anything about your studies..."
-              className="min-h-[60px] max-h-32 resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500"
-              disabled={isLoading}
-            />
-          </div>
-          
-          <Button
-            type="submit"
-            disabled={!message.trim() || isLoading}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 mb-2"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </form>
-      </div>
+      <div className="border-t border-white/20 bg-white/50 backdrop-blur-xl p-6">
+        <div className="max-w-4xl mx-auto">
+          {selectedImage && (
+            <div className="mb-4 p-3 bg-white/20 rounded-xl border border-white/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <ImageIcon className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm text-gray-700">{selectedImage.name}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedImage(null)}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          )}
 
-      {/* File Manager Modal */}
-      <FileManager
-        isOpen={showFileManager}
-        onClose={() => setShowFileManager(false)}
-      />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="relative">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Ask me anything about your studies..."
+                className="w-full min-h-[60px] resize-none bg-white/80 backdrop-blur-sm border-white/30 rounded-2xl px-6 py-4 pr-24 text-gray-800 placeholder-gray-500 focus:border-purple-300 focus:ring-purple-200"
+                disabled={isLoading}
+              />
+              
+              <div className="absolute bottom-3 right-3 flex items-center space-x-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-xl"
+                  disabled={isLoading}
+                >
+                  <Upload className="w-4 h-4" />
+                </Button>
+                
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={(!input.trim() && !selectedImage) || isLoading}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl px-4 py-2 transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };

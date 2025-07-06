@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
-import { Menu, X, Sparkles, User, LogOut, MessageSquare } from 'lucide-react';
+import { Menu, X, Sparkles, User, LogOut, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     try {
@@ -23,6 +25,10 @@ const Navbar = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleUpgradeClick = () => {
+    navigate('/premium');
   };
 
   return (
@@ -46,6 +52,13 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-6">
             {user && (
               <>
+                <Button
+                  onClick={handleUpgradeClick}
+                  className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white border-0 rounded-2xl px-4 py-2 transition-all duration-300 hover:scale-105 backdrop-blur-sm shadow-lg"
+                >
+                  <Crown className="h-4 w-4 mr-2" />
+                  Upgrade
+                </Button>
                 <div className="flex items-center space-x-2 text-gray-600">
                   <User className="h-4 w-4" />
                   <span className="text-sm">{user.email}</span>
@@ -77,6 +90,13 @@ const Navbar = () => {
           <div className="md:hidden bg-white/20 backdrop-blur-xl border border-white/30 rounded-2xl mt-2 p-4 mb-4">
             {user && (
               <div className="space-y-4">
+                <Button
+                  onClick={handleUpgradeClick}
+                  className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white border-0 rounded-2xl px-4 py-2 transition-all duration-300"
+                >
+                  <Crown className="h-4 w-4 mr-2" />
+                  Upgrade
+                </Button>
                 <div className="flex items-center space-x-2 text-gray-600 pb-2 border-b border-white/20">
                   <User className="h-4 w-4" />
                   <span className="text-sm">{user.email}</span>

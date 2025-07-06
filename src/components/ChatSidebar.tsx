@@ -2,9 +2,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Plus, Trash2, X } from 'lucide-react';
+import { MessageCircle, Plus, Trash2, X, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
+import { useNavigate } from 'react-router-dom';
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onNewSession
 }) => {
   const { sessions, deleteSession } = useChat();
+  const navigate = useNavigate();
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -34,6 +36,10 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     return `${Math.floor(hours / 24)}d ago`;
   };
 
+  const handleUpgradeClick = () => {
+    navigate('/premium');
+  };
+
   return (
     <>
       {/* Overlay for mobile */}
@@ -44,7 +50,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         />
       )}
       
-      {/* Sidebar */}
+      {/* Sidebar - now fixed positioned */}
       <div className={cn(
         "fixed left-0 top-20 h-[calc(100vh-5rem)] w-80 bg-white/95 backdrop-blur-xl border-r border-white/30 shadow-2xl z-50 transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-full"
@@ -116,6 +122,20 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               )}
             </div>
           </ScrollArea>
+
+          {/* Premium Button at bottom */}
+          <div className="p-4 border-t border-white/20">
+            <Button
+              onClick={handleUpgradeClick}
+              className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white border-0 rounded-xl px-4 py-3 transition-all duration-300 hover:scale-105 shadow-lg"
+            >
+              <Crown className="w-4 h-4 mr-2" />
+              <div className="flex flex-col items-start">
+                <span className="font-semibold">Upgrade to Premium</span>
+                <span className="text-xs opacity-90">Unlock unlimited features</span>
+              </div>
+            </Button>
+          </div>
         </div>
       </div>
     </>

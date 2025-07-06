@@ -20,6 +20,7 @@ const Index = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [showSurvey, setShowSurvey] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [hasShownWelcomeForSession, setHasShownWelcomeForSession] = useState<string | null>(null);
   const { 
     currentSessionId, 
     currentMessages, 
@@ -83,8 +84,6 @@ const Index = () => {
 
         if (!survey) {
           setShowSurvey(true);
-        } else if (!currentSessionId || currentMessages.length === 0) {
-          setShowWelcome(true);
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -94,7 +93,20 @@ const Index = () => {
     if (user && !loading) {
       loadUserProfile();
     }
-  }, [user, loading, currentSessionId, currentMessages.length]);
+  }, [user, loading]);
+
+  // Show welcome message only for new sessions that haven't shown it yet
+  useEffect(() => {
+    if (userProfile?.username && currentSessionId && currentMessages.length === 0) {
+      // Only show welcome if we haven't shown it for this session yet
+      if (hasShownWelcomeForSession !== currentSessionId) {
+        setShowWelcome(true);
+        setHasShownWelcomeForSession(currentSessionId);
+      }
+    } else {
+      setShowWelcome(false);
+    }
+  }, [userProfile, currentSessionId, currentMessages.length, hasShownWelcomeForSession]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -123,12 +135,17 @@ const Index = () => {
     await switchToSession(sessionId);
     setSidebarOpen(false);
     setShowWelcome(false);
+    // Reset welcome tracking when switching to existing session
+    setHasShownWelcomeForSession(sessionId);
   };
 
   const handleNewSession = async () => {
-    await startNewChat();
+    const newSession = await startNewChat();
     setSidebarOpen(false);
-    setShowWelcome(false);
+    // Don't set hasShownWelcomeForSession here - let the useEffect handle it
+    if (newSession) {
+      setHasShownWelcomeForSession(null); // Reset so welcome can show for new session
+    }
   };
 
   const handleStartChat = () => {
@@ -137,8 +154,6 @@ const Index = () => {
       handleNewSession();
     }
   };
-
-  const isNewChat = !currentSessionId || currentMessages.length === 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -165,10 +180,12 @@ const Index = () => {
           onNewSession={handleNewSession}
         />
 
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col relative">
+        {/* Main Chat Area - slides when sidebar is open */}
+        <div className={`flex-1 flex flex-col relative transition-all duration-300 ${
+          sidebarOpen ? 'lg:ml-80' : 'ml-0'
+        }`}>
           {/* Welcome Message Overlay */}
-          {showWelcome && userProfile?.username && isNewChat && (
+          {showWelcome && userProfile?.username && (
             <div 
               className="absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-br from-blue-50/80 via-white/80 to-purple-50/80 backdrop-blur-sm transition-opacity duration-500"
               onClick={handleStartChat}
