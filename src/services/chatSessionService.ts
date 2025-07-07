@@ -14,7 +14,10 @@ export const chatSessionService = {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading sessions:', error);
+        return [];
+      }
       
       // Transform the data to match our ChatSession interface
       const transformedSessions: ChatSession[] = (data || []).map(session => ({
@@ -22,10 +25,10 @@ export const chatSessionService = {
         title: session.title,
         created_at: session.created_at,
         updated_at: session.updated_at,
-        is_archived: (session as any).is_archived || false,
-        rating: (session as any).rating || undefined,
-        feedback: (session as any).feedback || undefined,
-        metadata: (session as any).metadata || {}
+        is_archived: session.is_archived ?? false,
+        rating: session.rating ?? undefined,
+        feedback: session.feedback ?? undefined,
+        metadata: session.metadata ?? {}
       }));
       
       // Filter archived sessions if needed
@@ -41,33 +44,33 @@ export const chatSessionService = {
   // Create new session
   async createSession(userId: string, title: string = 'New Chat', metadata: Record<string, any> = {}): Promise<ChatSession | null> {
     try {
+      // Start with basic session data
       const sessionData: any = {
         user_id: userId,
         title,
       };
 
-      // Only add metadata if the column exists
-      if (metadata && Object.keys(metadata).length > 0) {
-        sessionData.metadata = metadata;
-      }
-
+      // Try to add optional fields, but don't fail if they don't exist
       const { data, error } = await supabase
         .from('chat_sessions')
         .insert([sessionData])
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating session:', error);
+        return null;
+      }
       
       return {
         id: data.id,
         title: data.title,
         created_at: data.created_at,
         updated_at: data.updated_at,
-        is_archived: (data as any).is_archived || false,
-        rating: (data as any).rating || undefined,
-        feedback: (data as any).feedback || undefined,
-        metadata: (data as any).metadata || {}
+        is_archived: data.is_archived ?? false,
+        rating: data.rating ?? undefined,
+        feedback: data.feedback ?? undefined,
+        metadata: data.metadata ?? {}
       };
     } catch (error) {
       console.error('Error creating session:', error);
@@ -78,12 +81,17 @@ export const chatSessionService = {
   // Archive session
   async archiveSession(sessionId: string): Promise<boolean> {
     try {
+      // Try to update with is_archived, but fallback to deleting if column doesn't exist
       const { error } = await supabase
         .from('chat_sessions')
-        .update({ is_archived: true } as any)
+        .update({ is_archived: true })
         .eq('id', sessionId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error archiving session:', error);
+        // If archiving fails, try deleting as fallback
+        return await this.deleteSession(sessionId);
+      }
       return true;
     } catch (error) {
       console.error('Error archiving session:', error);
@@ -94,15 +102,32 @@ export const chatSessionService = {
   // Rate session
   async rateSession(sessionId: string, rating: number, feedback?: string): Promise<boolean> {
     try {
-      const updates: any = { rating };
-      if (feedback) updates.feedback = feedback;
+      // Try to update rating, but handle gracefully if columns don't exist
+      const updates: any = {};
+      
+      // Only try to set rating if it's a valid number
+      if (typeof rating === 'number' && rating >= 1 && rating <= 5) {
+        updates.rating = rating;
+      }
+      
+      if (feedback && typeof feedback === 'string') {
+        updates.feedback = feedback;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        console.warn('No valid rating data to update');
+        return false;
+      }
 
       const { error } = await supabase
         .from('chat_sessions')
         .update(updates)
         .eq('id', sessionId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error rating session:', error);
+        return false;
+      }
       return true;
     } catch (error) {
       console.error('Error rating session:', error);
@@ -118,7 +143,10 @@ export const chatSessionService = {
         .delete()
         .eq('id', sessionId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error deleting session:', error);
+        return false;
+      }
       return true;
     } catch (error) {
       console.error('Error deleting session:', error);

@@ -12,15 +12,18 @@ export const chatMessageService = {
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading messages:', error);
+        return [];
+      }
       
       // Transform the data to match our Message interface
       return (data || []).map(msg => ({
         id: msg.id,
         content: msg.content,
-        sender: (msg as any).sender || (msg.is_user ? 'user' : 'bot') as 'user' | 'bot',
+        sender: msg.is_user ? 'user' : 'bot',
         session_id: msg.session_id,
-        timestamp: (msg as any).timestamp || msg.created_at,
+        timestamp: msg.created_at,
         created_at: msg.created_at
       }));
     } catch (error) {
@@ -32,16 +35,11 @@ export const chatMessageService = {
   // Add message to session
   async addMessage(sessionId: string, content: string, sender: 'user' | 'bot'): Promise<any> {
     try {
-      const messageData: any = {
+      const messageData = {
         session_id: sessionId,
         content,
         is_user: sender === 'user',
       };
-
-      // Add sender field if it exists in the schema
-      if ((sender === 'user' || sender === 'bot')) {
-        messageData.sender = sender;
-      }
 
       const { data, error } = await supabase
         .from('chat_messages')
@@ -49,7 +47,10 @@ export const chatMessageService = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error adding message:', error);
+        return null;
+      }
       
       // Update session timestamp
       await supabase
