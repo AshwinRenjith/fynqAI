@@ -17,10 +17,10 @@ export interface ChatSession {
   title: string;
   created_at: string;
   updated_at: string;
-  is_archived: boolean;
+  is_archived?: boolean;
   rating?: number;
   feedback?: string;
-  metadata: Record<string, any>;
+  metadata?: Record<string, any>;
 }
 
 export const useChat = () => {
@@ -37,13 +37,9 @@ export const useChat = () => {
     try {
       let query = supabase
         .from('chat_sessions')
-        .select('id, title, created_at, updated_at, is_archived, rating, feedback, metadata')
+        .select('*')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
-
-      if (!includeArchived) {
-        query = query.eq('is_archived', false);
-      }
 
       const { data, error } = await query;
 
@@ -55,13 +51,18 @@ export const useChat = () => {
         title: session.title,
         created_at: session.created_at,
         updated_at: session.updated_at,
-        is_archived: session.is_archived || false,
-        rating: session.rating || undefined,
-        feedback: session.feedback || undefined,
-        metadata: session.metadata || {}
+        is_archived: (session as any).is_archived || false,
+        rating: (session as any).rating || undefined,
+        feedback: (session as any).feedback || undefined,
+        metadata: (session as any).metadata || {}
       }));
       
-      setSessions(transformedSessions);
+      // Filter archived sessions if needed
+      const filteredSessions = includeArchived 
+        ? transformedSessions 
+        : transformedSessions.filter(s => !s.is_archived);
+      
+      setSessions(filteredSessions);
     } catch (error) {
       console.error('Error loading sessions:', error);
     }
@@ -71,7 +72,7 @@ export const useChat = () => {
   const loadMessages = async (sessionId: string) => {
     try {
       const { data, error } = await supabase
-        .from('messages')
+        .from('chat_messages')
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
@@ -82,9 +83,9 @@ export const useChat = () => {
       const transformedMessages: Message[] = (data || []).map(msg => ({
         id: msg.id,
         content: msg.content,
-        sender: msg.sender as 'user' | 'bot',
+        sender: (msg as any).sender || (msg.is_user ? 'user' : 'bot') as 'user' | 'bot',
         session_id: msg.session_id,
-        timestamp: msg.timestamp || msg.created_at,
+        timestamp: (msg as any).timestamp || msg.created_at,
         created_at: msg.created_at
       }));
       
@@ -99,15 +100,20 @@ export const useChat = () => {
     if (!user) return null;
 
     try {
+      const sessionData: any = {
+        user_id: user.id,
+        title,
+      };
+
+      // Only add metadata if the column exists
+      if (metadata && Object.keys(metadata).length > 0) {
+        sessionData.metadata = metadata;
+      }
+
       const { data, error } = await supabase
         .from('chat_sessions')
-        .insert([{
-          user_id: user.id,
-          title,
-          metadata,
-          is_archived: false,
-        }])
-        .select('id, title, created_at, updated_at, is_archived, rating, feedback, metadata')
+        .insert([sessionData])
+        .select('*')
         .single();
 
       if (error) throw error;
@@ -117,10 +123,10 @@ export const useChat = () => {
         title: data.title,
         created_at: data.created_at,
         updated_at: data.updated_at,
-        is_archived: data.is_archived || false,
-        rating: data.rating || undefined,
-        feedback: data.feedback || undefined,
-        metadata: data.metadata || {}
+        is_archived: (data as any).is_archived || false,
+        rating: (data as any).rating || undefined,
+        feedback: (data as any).feedback || undefined,
+        metadata: (data as any).metadata || {}
       };
     } catch (error) {
       console.error('Error creating session:', error);
@@ -131,13 +137,20 @@ export const useChat = () => {
   // Add message to session
   const addMessage = async (sessionId: string, content: string, sender: 'user' | 'bot') => {
     try {
+      const messageData: any = {
+        session_id: sessionId,
+        content,
+        is_user: sender === 'user',
+      };
+
+      // Add sender field if it exists in the schema
+      if ((sender === 'user' || sender === 'bot')) {
+        messageData.sender = sender;
+      }
+
       const { data, error } = await supabase
-        .from('messages')
-        .insert([{
-          session_id: sessionId,
-          content,
-          sender,
-        }])
+        .from('chat_messages')
+        .insert([messageData])
         .select()
         .single();
 
@@ -165,7 +178,7 @@ export const useChat = () => {
     try {
       const { error } = await supabase
         .from('chat_sessions')
-        .update({ is_archived: true })
+        .update({ is_archived: true } as any)
         .eq('id', sessionId);
 
       if (error) throw error;
