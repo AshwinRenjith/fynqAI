@@ -20,16 +20,20 @@ export const chatSessionService = {
       }
       
       // Transform the data to match our ChatSession interface
-      const transformedSessions: ChatSession[] = (data || []).map(session => ({
-        id: session.id,
-        title: session.title,
-        created_at: session.created_at,
-        updated_at: session.updated_at,
-        is_archived: session.is_archived ?? false,
-        rating: session.rating ?? undefined,
-        feedback: session.feedback ?? undefined,
-        metadata: session.metadata ?? {}
-      }));
+      // Use type assertion to handle the schema mismatch
+      const transformedSessions: ChatSession[] = (data || []).map(session => {
+        const sessionAny = session as any; // Type assertion to handle missing columns
+        return {
+          id: sessionAny.id,
+          title: sessionAny.title,
+          created_at: sessionAny.created_at,
+          updated_at: sessionAny.updated_at,
+          is_archived: sessionAny.is_archived ?? false,
+          rating: sessionAny.rating ?? undefined,
+          feedback: sessionAny.feedback ?? undefined,
+          metadata: sessionAny.metadata ?? {}
+        };
+      });
       
       // Filter archived sessions if needed
       return includeArchived 
@@ -62,15 +66,17 @@ export const chatSessionService = {
         return null;
       }
       
+      // Use type assertion to handle schema mismatch
+      const sessionAny = data as any;
       return {
-        id: data.id,
-        title: data.title,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        is_archived: data.is_archived ?? false,
-        rating: data.rating ?? undefined,
-        feedback: data.feedback ?? undefined,
-        metadata: data.metadata ?? {}
+        id: sessionAny.id,
+        title: sessionAny.title,
+        created_at: sessionAny.created_at,
+        updated_at: sessionAny.updated_at,
+        is_archived: sessionAny.is_archived ?? false,
+        rating: sessionAny.rating ?? undefined,
+        feedback: sessionAny.feedback ?? undefined,
+        metadata: sessionAny.metadata ?? {}
       };
     } catch (error) {
       console.error('Error creating session:', error);
@@ -84,7 +90,7 @@ export const chatSessionService = {
       // Try to update with is_archived, but fallback to deleting if column doesn't exist
       const { error } = await supabase
         .from('chat_sessions')
-        .update({ is_archived: true })
+        .update({ is_archived: true } as any) // Type assertion for schema mismatch
         .eq('id', sessionId);
 
       if (error) {
