@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,7 +62,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     setIsLoading(true);
 
     try {
-      // Add user message with new sender field
+      // Add user message with sender field
       await addMessage(sessionId, messageText, 'user');
 
       let response;
@@ -74,7 +73,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
         response = await sendMessageToGemini(messageText);
       }
 
-      // Add AI response with new sender field
+      // Add AI response with sender field
       if (response?.response) {
         await addMessage(sessionId, response.response, 'bot');
       }

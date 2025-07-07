@@ -37,24 +37,28 @@ export const useChat = () => {
     try {
       let query = supabase
         .from('chat_sessions')
-        .select('id, title, created_at, updated_at, user_id')
+        .select('id, title, created_at, updated_at, is_archived, rating, feedback, metadata')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
+
+      if (!includeArchived) {
+        query = query.eq('is_archived', false);
+      }
 
       const { data, error } = await query;
 
       if (error) throw error;
       
-      // Transform the data to match our ChatSession interface with default values
+      // Transform the data to match our ChatSession interface
       const transformedSessions: ChatSession[] = (data || []).map(session => ({
         id: session.id,
         title: session.title,
         created_at: session.created_at,
         updated_at: session.updated_at,
-        is_archived: false, // Default value since column doesn't exist yet
-        rating: undefined,
-        feedback: undefined,
-        metadata: {}
+        is_archived: session.is_archived || false,
+        rating: session.rating || undefined,
+        feedback: session.feedback || undefined,
+        metadata: session.metadata || {}
       }));
       
       setSessions(transformedSessions);
@@ -67,7 +71,7 @@ export const useChat = () => {
   const loadMessages = async (sessionId: string) => {
     try {
       const { data, error } = await supabase
-        .from('chat_messages')
+        .from('messages')
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
@@ -78,9 +82,9 @@ export const useChat = () => {
       const transformedMessages: Message[] = (data || []).map(msg => ({
         id: msg.id,
         content: msg.content,
-        sender: msg.is_user ? 'user' : 'bot',
+        sender: msg.sender as 'user' | 'bot',
         session_id: msg.session_id,
-        timestamp: msg.created_at,
+        timestamp: msg.timestamp || msg.created_at,
         created_at: msg.created_at
       }));
       
@@ -100,8 +104,10 @@ export const useChat = () => {
         .insert([{
           user_id: user.id,
           title,
+          metadata,
+          is_archived: false,
         }])
-        .select('id, title, created_at, updated_at, user_id')
+        .select('id, title, created_at, updated_at, is_archived, rating, feedback, metadata')
         .single();
 
       if (error) throw error;
@@ -111,10 +117,10 @@ export const useChat = () => {
         title: data.title,
         created_at: data.created_at,
         updated_at: data.updated_at,
-        is_archived: false,
-        rating: undefined,
-        feedback: undefined,
-        metadata: {}
+        is_archived: data.is_archived || false,
+        rating: data.rating || undefined,
+        feedback: data.feedback || undefined,
+        metadata: data.metadata || {}
       };
     } catch (error) {
       console.error('Error creating session:', error);
@@ -126,11 +132,11 @@ export const useChat = () => {
   const addMessage = async (sessionId: string, content: string, sender: 'user' | 'bot') => {
     try {
       const { data, error } = await supabase
-        .from('chat_messages')
+        .from('messages')
         .insert([{
           session_id: sessionId,
           content,
-          is_user: sender === 'user',
+          sender,
         }])
         .select()
         .single();
@@ -154,22 +160,39 @@ export const useChat = () => {
     }
   };
 
-  // Archive session (placeholder - will work after migration)
+  // Archive session
   const archiveSession = async (sessionId: string) => {
     try {
-      console.log('Archive functionality will be available after database migration');
-      // For now, just delete the session
-      await deleteSession(sessionId);
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update({ is_archived: true })
+        .eq('id', sessionId);
+
+      if (error) throw error;
+      await loadSessions();
+      
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(null);
+        setCurrentMessages([]);
+      }
     } catch (error) {
       console.error('Error archiving session:', error);
     }
   };
 
-  // Rate session (placeholder - will work after migration)
+  // Rate session
   const rateSession = async (sessionId: string, rating: number, feedback?: string) => {
     try {
-      console.log('Rating functionality will be available after database migration');
-      // For now, this is a no-op
+      const updates: any = { rating };
+      if (feedback) updates.feedback = feedback;
+
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update(updates)
+        .eq('id', sessionId);
+
+      if (error) throw error;
+      await loadSessions();
     } catch (error) {
       console.error('Error rating session:', error);
     }
