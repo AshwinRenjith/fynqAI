@@ -58,13 +58,24 @@ export const useChat = () => {
   const loadMessages = async (sessionId: string) => {
     try {
       const { data, error } = await supabase
-        .from('messages')
+        .from('chat_messages')
         .select('*')
         .eq('session_id', sessionId)
-        .order('timestamp', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setCurrentMessages(data || []);
+      
+      // Transform the data to match our Message interface
+      const transformedMessages: Message[] = (data || []).map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        sender: msg.is_user ? 'user' : 'bot',
+        session_id: msg.session_id,
+        timestamp: msg.created_at,
+        created_at: msg.created_at
+      }));
+      
+      setCurrentMessages(transformedMessages);
     } catch (error) {
       console.error('Error loading messages:', error);
     }
@@ -98,11 +109,11 @@ export const useChat = () => {
   const addMessage = async (sessionId: string, content: string, sender: 'user' | 'bot') => {
     try {
       const { data, error } = await supabase
-        .from('messages')
+        .from('chat_messages')
         .insert([{
           session_id: sessionId,
           content,
-          sender,
+          is_user: sender === 'user',
         }])
         .select()
         .single();
