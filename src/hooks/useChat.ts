@@ -37,7 +37,7 @@ export const useChat = () => {
     try {
       let query = supabase
         .from('chat_sessions')
-        .select('*')
+        .select('id, title, created_at, updated_at, is_archived, rating, feedback, metadata')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
 
@@ -48,7 +48,20 @@ export const useChat = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setSessions(data || []);
+      
+      // Transform the data to match our ChatSession interface
+      const transformedSessions: ChatSession[] = (data || []).map(session => ({
+        id: session.id,
+        title: session.title,
+        created_at: session.created_at,
+        updated_at: session.updated_at,
+        is_archived: session.is_archived || false,
+        rating: session.rating || undefined,
+        feedback: session.feedback || undefined,
+        metadata: session.metadata || {}
+      }));
+      
+      setSessions(transformedSessions);
     } catch (error) {
       console.error('Error loading sessions:', error);
     }
@@ -92,13 +105,23 @@ export const useChat = () => {
           user_id: user.id,
           title,
           metadata,
+          is_archived: false,
         }])
-        .select()
+        .select('id, title, created_at, updated_at, is_archived, rating, feedback, metadata')
         .single();
 
       if (error) throw error;
       await loadSessions();
-      return data;
+      return {
+        id: data.id,
+        title: data.title,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        is_archived: data.is_archived || false,
+        rating: data.rating || undefined,
+        feedback: data.feedback || undefined,
+        metadata: data.metadata || {}
+      };
     } catch (error) {
       console.error('Error creating session:', error);
       return null;
