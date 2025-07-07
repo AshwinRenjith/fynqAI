@@ -43,7 +43,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     
     // Create new session if none exists
     if (!sessionId) {
-      const newSession = await startNewChat();
+      const newSession = await startNewChat({
+        device: navigator.userAgent,
+        timestamp: new Date().toISOString()
+      });
       if (!newSession) {
         toast({
           title: "Error",
@@ -60,8 +63,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     setIsLoading(true);
 
     try {
-      // Add user message
-      await addMessage(sessionId, messageText, true);
+      // Add user message with new sender field
+      await addMessage(sessionId, messageText, 'user');
 
       let response;
       if (selectedImage) {
@@ -71,9 +74,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
         response = await sendMessageToGemini(messageText);
       }
 
-      // Add AI response
+      // Add AI response with new sender field
       if (response?.response) {
-        await addMessage(sessionId, response.response, false);
+        await addMessage(sessionId, response.response, 'bot');
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -126,16 +129,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
               currentMessages.map((message, index) => (
                 <div
                   key={message.id}
-                  className={`flex ${message.is_user ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
                     className={`max-w-[80%] rounded-2xl px-6 py-4 ${
-                      message.is_user
+                      message.sender === 'user'
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white ml-auto'
                         : 'bg-white/70 backdrop-blur-sm border border-white/30 shadow-lg'
                     }`}
                   >
-                    {message.is_user ? (
+                    {message.sender === 'user' ? (
                       <p className="text-white leading-relaxed whitespace-pre-wrap">
                         {message.content}
                       </p>
