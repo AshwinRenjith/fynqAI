@@ -1,11 +1,10 @@
-
 export interface Message {
   id: string;
   content: string;
-  sender: 'user' | 'bot';
   session_id: string;
-  timestamp: string;
   created_at: string;
+  // sender is mapped from is_user: true => 'user', false => 'bot'
+  sender: 'user' | 'bot';
 }
 
 export interface ChatSession {
@@ -13,8 +12,6 @@ export interface ChatSession {
   title: string;
   created_at: string;
   updated_at: string;
-  is_archived?: boolean;
-  rating?: number;
-  feedback?: string;
-  metadata?: Record<string, any>;
+  is_archived: boolean;
+  // No is_archived, rating, feedback, metadata in DB
 }
