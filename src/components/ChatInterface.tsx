@@ -12,9 +12,10 @@ import AIMessageRenderer from './AIMessageRenderer';
 interface ChatInterfaceProps {
   currentSessionId: string | null;
   hasMessages: boolean;
+  onSendMessage: (msg: { sender: string; text: string; timestamp: string; sessionId: string }) => Promise<void>;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMessages }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMessages, onSendMessage }) => {
   const { user } = useAuth();
   const { currentMessages, addMessage, startNewChat } = useChat();
   const [input, setInput] = useState('');

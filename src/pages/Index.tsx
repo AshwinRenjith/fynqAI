@@ -28,6 +28,43 @@ const Index = () => {
     startNewChat 
   } = useChat();
 
+  // Add sessionId state
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  // Update initial messages to include timestamp
+  const [messages, setMessages] = useState([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  // Add chatStarted state
+  const [chatStarted, setChatStarted] = useState(false);
+  // Add chatKey state
+  const [chatKey, setChatKey] = useState(Date.now());
+  // Add chatSessions state
+  const [chatSessions, setChatSessions] = useState<any[]>([]);
+  // Add activeSessionId state
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  // Add motivationalMessage state
+  const [motivationalMessage, setMotivationalMessage] = useState<string | null>(null);
+
+  // Fetch messages when sessionId changes
+  useEffect(() => {
+    if (!sessionId) return;
+    setLoadingMessages(true);
+    supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        setMessages(
+          (data || []).map((m) => ({
+            sender: m.is_user ? 'user' : 'ai',
+            text: m.content,
+            timestamp: m.created_at,
+          }))
+        );
+        setLoadingMessages(false);
+      });
+  }, [sessionId]);
+
   // Load user profile and check survey status
   useEffect(() => {
     const loadUserProfile = async () => {
@@ -132,20 +169,41 @@ const Index = () => {
   }
 
   const handleSessionSelect = async (sessionId: string) => {
-    await switchToSession(sessionId);
+    setSessionId(sessionId);
+    setActiveSessionId(sessionId);
     setSidebarOpen(false);
-    setShowWelcome(false);
-    // Reset welcome tracking when switching to existing session
-    setHasShownWelcomeForSession(sessionId);
+    // Messages will be fetched by useEffect
   };
 
   const handleNewSession = async () => {
-    const newSession = await startNewChat();
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .insert({
+        user_id: user.id,
+        title: 'New Chat',
+      })
+      .select()
+      .single();
+    if (error || !data) return;
+    setSessionId(data.id);
+    setMessages([
+      {
+        sender: 'ai',
+        text: 'Hi there! How can I help you today?',
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    setChatStarted(false);
+    setChatKey(Date.now());
+    setActiveSessionId(data.id);
     setSidebarOpen(false);
-    // Don't set hasShownWelcomeForSession here - let the useEffect handle it
-    if (newSession) {
-      setHasShownWelcomeForSession(null); // Reset so welcome can show for new session
-    }
+    // Insert welcome message into chat_messages
+    await supabase.from('chat_messages').insert({
+      session_id: data.id,
+      content: 'Hi there! How can I help you today?',
+      is_user: false,
+    });
   };
 
   const handleStartChat = () => {
@@ -205,8 +263,20 @@ const Index = () => {
           )}
 
           <ChatInterface 
-            currentSessionId={currentSessionId}
-            hasMessages={currentMessages.length > 0}
+            key={chatKey}
+            onChatStarted={() => setChatStarted(true)}
+            messages={messages}
+            setMessages={setMessages}
+            sessionId={sessionId}
+            onSendMessage={async (msg) => {
+              if (!sessionId) return;
+              await supabase.from('chat_messages').insert({
+                session_id: sessionId,
+                content: msg.text,
+                is_user: msg.sender === 'user',
+                created_at: msg.timestamp,
+              });
+            }}
           />
         </div>
       </div>
