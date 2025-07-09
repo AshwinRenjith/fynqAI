@@ -50,17 +50,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentSessionId, hasMess
     
     // Create new session if none exists
     if (!sessionId) {
-      const newSession = await startNewChat();
-      if (!newSession) {
-        toast({
-          title: "Error",
-          description: "Failed to create new chat session",
-          variant: "destructive",
-        });
-        return;
-      }
-      sessionId = newSession.id;
+      toast({
+        title: "No active chat",
+        description: "Please start a new chat from the sidebar or wait for the session to load.",
+        variant: "destructive",
+      });
+      return;
     }
+    
 
     const messageText = input.trim() || 'Image uploaded';
     setInput('');

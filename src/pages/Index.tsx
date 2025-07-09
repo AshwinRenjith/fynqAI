@@ -43,6 +43,27 @@ const Index = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   // Add motivationalMessage state
   const [motivationalMessage, setMotivationalMessage] = useState<string | null>(null);
+  // Add: Track if sessions are loaded
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
+
+  // On mount, load sessions and auto-select the most recent one if available
+  useEffect(() => {
+    if (!user) return;
+    const loadSessions = async () => {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+      if (!error && data && data.length > 0) {
+        setChatSessions(data);
+        setSessionId(data[0].id);
+        setActiveSessionId(data[0].id);
+      }
+      setSessionsLoaded(true);
+    };
+    loadSessions();
+  }, [user]);
 
   // Fetch messages when sessionId changes
   useEffect(() => {
@@ -197,13 +218,14 @@ const Index = () => {
     setChatStarted(false);
     setChatKey(Date.now());
     setActiveSessionId(data.id);
+    setMessages([
+      {
+        sender: 'ai',
+        text: 'Hi there! How can I help you today?',
+        timestamp: new Date().toISOString(),
+      },
+    ]);
     setSidebarOpen(false);
-    // Insert welcome message into chat_messages
-    await supabase.from('chat_messages').insert({
-      session_id: data.id,
-      content: 'Hi there! How can I help you today?',
-      is_user: false,
-    });
   };
 
   const handleStartChat = () => {
@@ -267,9 +289,12 @@ const Index = () => {
             onChatStarted={() => setChatStarted(true)}
             messages={messages}
             setMessages={setMessages}
-            sessionId={sessionId}
+            currentSessionId={sessionId}
             onSendMessage={async (msg) => {
-              if (!sessionId) return;
+              if (!sessionId) {
+                alert('Please start a new chat before sending a message.');
+                return;
+              }
               await supabase.from('chat_messages').insert({
                 session_id: sessionId,
                 content: msg.text,
