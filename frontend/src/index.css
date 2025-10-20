@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Liquid Glass Design System - Apple inspired */
+    
+    /* Base colors - softer, more ethereal */
+    --background: 240 25% 97%;
+    --foreground: 240 12% 12%;
+    
+    /* Liquid Glass layers */
+    --glass-base: 240 25% 99%;
+    --glass-elevated: 240 30% 99%;
+    --glass-border: 240 20% 88%;
+    --glass-shine: 0 0% 100%;
+    
+    /* Dark Glass layers for chat input */
+    --glass-dark: 240 15% 20%;
+    --glass-dark-elevated: 240 18% 25%;
+    --glass-dark-border: 240 10% 35%;
+    
+    /* Card surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 15%;
+    
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 15%;
+    
+    /* Primary - Purple gradient accent */
+    --primary: 262 80% 60%;
+    --primary-glow: 250 85% 70%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary - Soft neutral */
+    --secondary: 240 15% 96%;
+    --secondary-foreground: 240 10% 25%;
+    
+    /* Muted */
+    --muted: 240 12% 94%;
+    --muted-foreground: 240 8% 50%;
+    
+    /* Accent - Blue purple blend */
+    --accent: 245 75% 65%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Destructive */
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Borders and inputs */
+    --border: 240 15% 88%;
+    --input: 240 15% 92%;
+    --ring: 262 80% 60%;
+    
+    /* Radius */
+    --radius: 1rem;
+    
+    /* Sidebar */
+    --sidebar-background: 240 20% 98%;
+    --sidebar-foreground: 240 10% 25%;
+    --sidebar-primary: 262 80% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 15% 95%;
+    --sidebar-accent-foreground: 240 10% 25%;
+    --sidebar-border: 240 15% 88%;
+    --sidebar-ring: 262 80% 60%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(262 80% 60%) 0%, hsl(245 75% 65%) 100%);
+    --gradient-glow: radial-gradient(circle at center, hsl(262 80% 60% / 0.3) 0%, transparent 70%);
+    --gradient-mesh: radial-gradient(ellipse 80% 50% at 50% 40%, hsl(250 85% 70% / 0.2) 0%, transparent 70%);
+    
+    /* Liquid Glass Shadows - Ultra soft and layered */
+    --shadow-xs: 0 1px 2px 0 hsl(240 15% 15% / 0.03);
+    --shadow-sm: 0 2px 8px -2px hsl(240 12% 15% / 0.06), 0 1px 2px -1px hsl(240 10% 15% / 0.04);
+    --shadow-md: 0 4px 20px -4px hsl(240 12% 15% / 0.08), 0 2px 6px -2px hsl(240 10% 15% / 0.05);
+    --shadow-lg: 0 12px 40px -8px hsl(240 12% 15% / 0.1), 0 4px 12px -4px hsl(240 10% 15% / 0.06);
+    --shadow-xl: 0 20px 60px -12px hsl(240 12% 15% / 0.14), 0 8px 20px -6px hsl(240 10% 15% / 0.08);
+    --shadow-glow: 0 0 60px -15px hsl(262 80% 60% / 0.5), 0 0 30px -10px hsl(245 75% 65% / 0.3);
+    --shadow-glow-strong: 0 0 80px -10px hsl(262 80% 60% / 0.6), 0 0 40px -5px hsl(245 75% 65% / 0.4);
+    
+    /* Enhanced Backdrop blur */
+    --blur-xs: 4px;
+    --blur-sm: 12px;
+    --blur-md: 20px;
+    --blur-lg: 32px;
+    --blur-xl: 48px;
+    
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  /* Liquid Glass morphism utilities */
+  .glass {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass-base) / 0.6) 0%,
+      hsl(var(--glass-base) / 0.4) 100%
+    );
+    backdrop-filter: blur(var(--blur-md)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--blur-md)) saturate(180%);
+    border: 1px solid hsl(var(--glass-border) / 0.2);
+    box-shadow: 
+      inset 0 1px 0 0 hsl(var(--glass-shine) / 0.05),
+      var(--shadow-sm);
+  }
+  
+  .glass-strong {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass-elevated) / 0.85) 0%,
+      hsl(var(--glass-elevated) / 0.7) 100%
+    );
+    backdrop-filter: blur(var(--blur-lg)) saturate(200%);
+    -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(200%);
+    border: 1px solid hsl(var(--glass-border) / 0.3);
+    box-shadow: 
+      inset 0 1px 0 0 hsl(var(--glass-shine) / 0.1),
+      var(--shadow-md);
+  }
+  
+  .glass-card {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass-base) / 0.95) 0%,
+      hsl(var(--glass-base) / 0.85) 100%
+    );
+    backdrop-filter: blur(var(--blur-xl)) saturate(200%);
+    -webkit-backdrop-filter: blur(var(--blur-xl)) saturate(200%);
+    border: 1px solid hsl(var(--glass-border) / 0.4);
+    box-shadow: 
+      inset 0 1px 1px 0 hsl(var(--glass-shine) / 0.15),
+      var(--shadow-lg);
+  }
+  
+  .glass-dark {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass-dark) / 0.8) 0%,
+      hsl(var(--glass-dark) / 0.6) 100%
+    );
+    backdrop-filter: blur(var(--blur-xl)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--blur-xl)) saturate(180%);
+    border: 1px solid hsl(var(--glass-dark-border) / 0.3);
+    box-shadow: 
+      inset 0 1px 0 0 hsl(var(--glass-shine) / 0.08),
+      var(--shadow-xl);
+  }
+  
+  .glass-dark-elevated {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass-dark-elevated) / 0.85) 0%,
+      hsl(var(--glass-dark-elevated) / 0.7) 100%
+    );
+    backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+    border: 1px solid hsl(var(--glass-dark-border) / 0.4);
+    box-shadow: 
+      inset 0 1px 0 0 hsl(var(--glass-shine) / 0.1),
+      var(--shadow-md);
+  }
+  
+  /* Gradient utilities */
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-mesh {
+    background: var(--gradient-mesh);
+  }
+  
+  /* Shadow utilities */
+  .shadow-glass {
+    box-shadow: var(--shadow-md);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .transition-spring {
+    transition: var(--transition-spring);
+  }
+}
