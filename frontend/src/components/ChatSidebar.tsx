@@ -39,20 +39,23 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
 
   const profileName = useMemo(() => {
     if (user) {
-      return (user.user_metadata?.full_name as string | undefined) || user.email || "Signed In";
+      return (user.user_metadata?.full_name as string | undefined) || user.email || "Active user";
     }
-    return "Sign in";
+    return "Not signed in";
   }, [user]);
 
   const profileEmail = useMemo(() => {
     if (user?.email) {
       return user.email;
     }
-    return "Access your workspace";
+    return "Tap to sign in";
   }, [user]);
 
   const profileInitials = useMemo(() => {
-    const source = user?.user_metadata?.full_name || user?.email || "?";
+    const source = (user?.user_metadata?.full_name as string | undefined) || user?.email || "";
+    if (!source) {
+      return "--";
+    }
     return source
       .split(" ")
       .filter(Boolean)
@@ -73,24 +76,7 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
     { id: "history", icon: Clock, label: "History" },
   ];
 
-  const chatHistory = [
-    {
-      period: "Tomorrow",
-      chats: [
-        "What's something you've learnt...",
-        "If you could teleport anywhere...",
-        "What's one goal you want to ac...",
-      ],
-    },
-    {
-      period: "7 Days Ago",
-      chats: [
-        "Ask me anything weird or rand...",
-        "How are you feeling today, reall...",
-        "What's one habit you wish you...",
-      ],
-    },
-  ];
+  const chatHistory: Array<{ period: string; chats: string[] }> = [];
 
   if (isCollapsed) {
     return (
@@ -142,9 +128,9 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
         <div className="p-6 pb-4">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-9 h-9 rounded-[1.125rem] gradient-primary flex items-center justify-center shadow-glow transition-spring hover:scale-110">
-              <span className="text-white font-semibold">B</span>
+              <span className="text-white text-xs font-semibold tracking-wide">fynqAI</span>
             </div>
-            <h2 className="text-xl font-semibold text-foreground">BeeBot</h2>
+            <h2 className="text-xl font-semibold text-foreground">fynqAI</h2>
           </div>
 
           {/* Search */}
@@ -178,22 +164,30 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
 
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto px-3 pb-6">
-          {chatHistory.map((section) => (
-            <div key={section.period} className="mb-6">
-              <h3 className="text-xs font-semibold text-muted-foreground/70 mb-2 px-3">
-                {section.period}
-              </h3>
-              {section.chats.map((chat, idx) => (
-                <Button
-                  key={idx}
-                  variant="ghost"
-                  className="w-full justify-start text-left mb-1 px-3 transition-spring hover:scale-[1.02] hover:glass text-sm text-muted-foreground hover:text-foreground"
-                >
-                  <span className="truncate">{chat}</span>
-                </Button>
-              ))}
+          {chatHistory.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground/70">
+              <Clock className="h-5 w-5" />
+              <p className="text-sm font-medium">No conversations yet</p>
+              <p className="text-xs">Start a new chat to see history here.</p>
             </div>
-          ))}
+          ) : (
+            chatHistory.map((section) => (
+              <div key={section.period} className="mb-6">
+                <h3 className="text-xs font-semibold text-muted-foreground/70 mb-2 px-3">
+                  {section.period}
+                </h3>
+                {section.chats.map((chat, idx) => (
+                  <Button
+                    key={idx}
+                    variant="ghost"
+                    className="w-full justify-start text-left mb-1 px-3 transition-spring hover:scale-[1.02] hover:glass text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    <span className="truncate">{chat}</span>
+                  </Button>
+                ))}
+              </div>
+            ))
+          )}
         </div>
 
         {/* User Profile */}

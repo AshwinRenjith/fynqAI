@@ -1,5 +1,7 @@
 import {
   useCallback,
+  useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -17,6 +19,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
 
 type ChatMessage = {
   id: string;
@@ -50,13 +54,68 @@ const generateAiResponse = (prompt: string) => {
 
 const ChatArea = () => {
   const { toast } = useToast();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    createMessage("assistant", "Hey Judha! Ready to explore something new today?"),
-  ]);
+  const [user, setUser] = useState<User | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!supabase) {
+      setUser(null);
+      return;
+    }
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user ?? null);
+    };
+
+    loadSession();
+
+    const { data: authSubscription } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      authSubscription?.subscription.unsubscribe();
+    };
+  }, []);
+
+  const greetingName = useMemo(() => {
+    if (!user) {
+      return "there";
+    }
+
+    const fullName = (user.user_metadata?.full_name as string | undefined)?.trim();
+    if (fullName) {
+      return fullName.split(" ")[0];
+    }
+
+    if (user.email) {
+      return user.email.split("@")[0];
+    }
+
+    return "there";
+  }, [user]);
+
+  useEffect(() => {
+    setMessages((previous) => {
+      const desiredContent = `Hey ${greetingName}! Ready to explore something new today?`;
+
+      if (previous.length === 0) {
+        return [createMessage("assistant", desiredContent)];
+      }
+
+      const [first, ...rest] = previous;
+      if (first.role !== "assistant" || first.content === desiredContent) {
+        return previous;
+      }
+
+      return [{ ...first, content: desiredContent }, ...rest];
+    });
+  }, [greetingName]);
 
   const processMessage = useCallback(() => {
     const trimmed = inputValue.trim();
@@ -177,7 +236,7 @@ const ChatArea = () => {
         <div className="mb-10 flex justify-center">
           <div className="relative group">
             <div className="w-24 h-24 rounded-[2rem] gradient-primary flex items-center justify-center shadow-glow-strong animate-scale-in glass-card transition-spring hover:scale-110">
-              <Sparkles className="w-12 h-12 text-white drop-shadow-lg" />
+              <span className="text-2xl font-semibold tracking-wide text-white">fynqAI</span>
             </div>
             <div className="absolute inset-0 rounded-[2rem] gradient-primary opacity-50 blur-2xl animate-pulse group-hover:opacity-70 transition-smooth" />
           </div>
@@ -185,7 +244,7 @@ const ChatArea = () => {
 
         {/* Greeting */}
         <h1 className="text-6xl font-semibold mb-3 text-foreground animate-fade-in tracking-tight">
-          Good Morning, Judha
+          Good Morning, {greetingName}
         </h1>
         <p className="text-4xl animate-fade-in leading-tight" style={{ animationDelay: "0.15s" }}>
           How Can I{" "}
