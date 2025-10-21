@@ -1,7 +1,10 @@
 import { Home, Compass, BookOpen, Clock, Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
 
 interface ChatSidebarProps {
   isCollapsed: boolean;
@@ -9,7 +12,59 @@ interface ChatSidebarProps {
 }
 
 const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
+  const navigate = useNavigate();
   const [activeNav, setActiveNav] = useState("home");
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user ?? null);
+    };
+
+    loadSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
+  const profileName = useMemo(() => {
+    if (user) {
+      return (user.user_metadata?.full_name as string | undefined) || user.email || "Signed In";
+    }
+    return "Sign in";
+  }, [user]);
+
+  const profileEmail = useMemo(() => {
+    if (user?.email) {
+      return user.email;
+    }
+    return "Access your workspace";
+  }, [user]);
+
+  const profileInitials = useMemo(() => {
+    const source = user?.user_metadata?.full_name || user?.email || "?";
+    return source
+      .split(" ")
+      .filter(Boolean)
+      .map((part: string) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }, [user]);
+
+  const handleProfileClick = () => {
+    navigate("/login");
+  };
 
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
@@ -47,7 +102,7 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
         >
           <Plus className="w-5 h-5" />
         </Button>
-        
+
         {navItems.map((item) => (
           <Button
             key={item.id}
@@ -63,6 +118,16 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
             <item.icon className="w-5 h-5" />
           </Button>
         ))}
+
+        <div className="flex-1" />
+
+        <button
+          type="button"
+          onClick={handleProfileClick}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary via-accent to-primary-glow text-sm font-semibold text-white shadow-glow transition-spring hover:scale-110"
+        >
+          {profileInitials}
+        </button>
       </div>
     );
   }
@@ -133,13 +198,19 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
 
         {/* User Profile */}
         <div className="p-4 border-t border-border/30 glass">
-          <div className="flex items-center gap-3 p-3 rounded-2xl hover:glass-card cursor-pointer transition-spring hover:shadow-md">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary via-accent to-primary-glow shadow-glow" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">Judha Mayusiya</p>
-              <p className="text-xs text-muted-foreground/70 truncate">judha.design@gmail.com</p>
+          <button
+            type="button"
+            onClick={handleProfileClick}
+            className="flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-spring hover:glass-card hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-accent to-primary-glow text-sm font-semibold text-white shadow-glow">
+              {profileInitials}
             </div>
-          </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{profileName}</p>
+              <p className="text-xs text-muted-foreground/70 truncate">{profileEmail}</p>
+            </div>
+          </button>
         </div>
       </div>
     </div>

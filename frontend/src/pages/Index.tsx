@@ -2,7 +2,6 @@ import { useState } from "react";
 import ChatSidebar from "@/components/ChatSidebar";
 import ChatHeader from "@/components/ChatHeader";
 import ChatArea from "@/components/ChatArea";
-import ChatInput from "@/components/ChatInput";
 
 const Index = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -21,7 +20,6 @@ const Index = () => {
         
         <div className="flex-1 flex flex-col min-h-0">
           <ChatArea />
-          <ChatInput />
         </div>
       </div>
     </div>
