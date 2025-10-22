@@ -5,6 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ChatSidebarProps {
   isCollapsed: boolean;
@@ -13,6 +22,7 @@ interface ChatSidebarProps {
 
 const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeNav, setActiveNav] = useState("home");
   const [user, setUser] = useState<User | null>(null);
 
@@ -65,9 +75,66 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
       .toUpperCase();
   }, [user]);
 
-  const handleProfileClick = () => {
+  const handleProfileNavigate = () => {
+    if (user) {
+      navigate("/profile");
+    } else {
+      navigate("/login");
+    }
+  };
+
+  const handleUpgradeNavigate = () => {
+    navigate("/upgrade");
+  };
+
+  const handleSignIn = () => {
     navigate("/login");
   };
+
+  const handleSignOut = async () => {
+    if (!supabase) {
+      toast({
+        title: "Supabase not configured",
+        description: "Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable auth.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        title: "Sign out failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Signed out",
+      description: "Come back soon to keep exploring.",
+    });
+    navigate("/login");
+  };
+
+  const accountMenu = user ? (
+    <>
+      <DropdownMenuLabel>Account</DropdownMenuLabel>
+      <DropdownMenuItem onClick={handleProfileNavigate}>Profile</DropdownMenuItem>
+      <DropdownMenuItem onClick={handleUpgradeNavigate}>Upgrade</DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
+    </>
+  ) : (
+    <>
+      <DropdownMenuLabel>fynqAI</DropdownMenuLabel>
+      <DropdownMenuItem onClick={handleProfileNavigate}>Profile</DropdownMenuItem>
+      <DropdownMenuItem onClick={handleUpgradeNavigate}>Upgrade</DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={handleSignIn}>Sign in</DropdownMenuItem>
+    </>
+  );
 
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
@@ -107,13 +174,19 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
 
         <div className="flex-1" />
 
-        <button
-          type="button"
-          onClick={handleProfileClick}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary via-accent to-primary-glow text-sm font-semibold text-white shadow-glow transition-spring hover:scale-110"
-        >
-          {profileInitials}
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary via-accent to-primary-glow text-sm font-semibold text-white shadow-glow transition-spring hover:scale-110"
+            >
+              {profileInitials}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {accountMenu}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     );
   }
@@ -192,19 +265,25 @@ const ChatSidebar = ({ isCollapsed }: ChatSidebarProps) => {
 
         {/* User Profile */}
         <div className="p-4 border-t border-border/30 glass">
-          <button
-            type="button"
-            onClick={handleProfileClick}
-            className="flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-spring hover:glass-card hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-accent to-primary-glow text-sm font-semibold text-white shadow-glow">
-              {profileInitials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{profileName}</p>
-              <p className="text-xs text-muted-foreground/70 truncate">{profileEmail}</p>
-            </div>
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-spring hover:glass-card hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-accent to-primary-glow text-sm font-semibold text-white shadow-glow">
+                  {profileInitials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{profileName}</p>
+                  <p className="text-xs text-muted-foreground/70 truncate">{profileEmail}</p>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {accountMenu}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </div>

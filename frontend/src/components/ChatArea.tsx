@@ -8,14 +8,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import {
-  Mic,
-  MoveRight,
-  Paperclip,
-  Rocket,
-  Sparkles,
-  UserRound,
-} from "lucide-react";
+import { Mic, MoveRight, Paperclip, Rocket, Sparkles } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -199,23 +192,18 @@ const ChatArea = () => {
   const shortcutActions = [
     {
       icon: Sparkles,
-      label: "DeepSearch",
-      action: () => handleQuickInsert("Deep search the latest trends in AI productivity workflows."),
+      label: "Deep Study",
+      action: () => handleQuickInsert("Guide me through a deep study session on AI workspace automation."),
     },
     {
       icon: MoveRight,
-      label: "Create Images",
-      action: () => handleQuickInsert("Generate a clean hero illustration for our workspace dashboard."),
+      label: "Study Space",
+      action: () => handleQuickInsert("Set up a structured study space plan for today's learning agenda."),
     },
     {
       icon: Rocket,
-      label: "Try Projects",
-      action: () => handleQuickInsert("Map out a 4-week launch plan for our new AI assistant."),
-    },
-    {
-      icon: UserRound,
-      label: "Personas",
-      action: () => handleQuickInsert("Define 3 personas who would benefit from our AI workspace."),
+      label: "Pop Quiz",
+      action: () => handleQuickInsert("Give me a pop quiz on the latest productivity research."),
     },
   ];
 
@@ -330,7 +318,6 @@ const ChatArea = () => {
                 >
                   <Icon className="h-5 w-5" />
                   {label}
-                  {label === "Try Projects" && <MoveRight className="h-4 w-4" />}
                 </button>
               ))}
             </div>
