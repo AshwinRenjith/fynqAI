@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # Vector embeddings
     embeddings_model_name: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", alias="EMBEDDINGS_MODEL_NAME")
 
+    # Subject classifier configuration
+    subject_classifier_model_name: str = Field(default="raag-male/kcbert-base", alias="SUBJECT_CLASSIFIER_MODEL_NAME")
+    subject_classifier_use_stub: bool = Field(default=False, alias="SUBJECT_CLASSIFIER_USE_STUB")
+
     # Rate limiting / throttling
     rate_limit: str = Field(default="60/minute", alias="RATE_LIMIT")
 
