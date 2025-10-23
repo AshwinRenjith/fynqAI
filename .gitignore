@@ -3,8 +3,12 @@ node_modules/
 .pnp
 .pnp.js
 
-# Python virtual environment
+__pycache__/
+*.pyc
 .venv/
+.env
+*.log
+
 
 # Testing
 coverage/
