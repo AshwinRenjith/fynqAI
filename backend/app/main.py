@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.routes.answers import router as answers_router
+from app.routes.doubts import router as doubts_router
 from app.utils.logger import configure_logging, get_logger
 
 
@@ -23,6 +25,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(doubts_router)
+app.include_router(answers_router)
 
 
 @app.on_event("startup")

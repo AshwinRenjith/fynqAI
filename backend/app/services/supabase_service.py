@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from supabase import AsyncClient, create_async_client
+from supabase import AClient, acreate_client
 
 from app.config import get_settings
 from app.utils.logger import get_logger
@@ -15,14 +15,14 @@ class SupabaseService:
 
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None) -> None:
         settings = get_settings()
-        self._client: AsyncClient = create_async_client(
+        self._client: AClient = acreate_client(
             url or str(settings.supabase_url),
             key or settings.supabase_service_role_key,
         )
         self._logger = get_logger(__name__)
 
     @property
-    def client(self) -> AsyncClient:
+    def client(self) -> AClient:
         """Return the underlying Supabase client."""
 
         return self._client

@@ -22,7 +22,7 @@ numpy==1.26.4
 
 # Persistence and vector search
 supabase==2.5.1
-psycopg[binary]==3.2.11
+psycopg[binary]==3.2.1
 pgvector==0.2.5
 
 # Caching

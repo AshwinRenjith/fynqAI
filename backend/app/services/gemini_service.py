@@ -28,8 +28,19 @@ class GeminiService:
 		self._text_model = genai.GenerativeModel("gemini-pro")
 		self._logger = get_logger(__name__)
 
-	async def extract_from_image(self, image_bytes: bytes, *, mime_type: str = "image/png") -> Dict[str, Any]:
+	async def extract_from_image(
+		self,
+		image_bytes: bytes,
+		*,
+		mime_type: str = "image/png",
+		instruction: Optional[str] = None,
+	) -> Dict[str, Any]:
 		"""Extract structured information from an image using Gemini Vision."""
+
+		prompt_text = instruction or (
+			"Identify the question shown in the image and return a JSON object with "
+			"fields: question, important_concepts (list), diagrams_present (bool), and annotations."
+		)
 
 		contents = [
 			{
@@ -37,24 +48,21 @@ class GeminiService:
 				"data": image_bytes,
 			},
 			{
-				"text": (
-					"Identify the question shown in the image and return a JSON object with "
-					"fields: question, important_concepts (list), diagrams_present (bool), and annotations."
-				),
+				"text": prompt_text,
 			},
 		]
 		response_text = await self._invoke(self._vision_model, contents, operation_name="extract_from_image")
 		return self._parse_json_payload(response_text)
 
-	async def extract_from_text(self, prompt: str) -> Dict[str, Any]:
+	async def extract_from_text(self, prompt: str, *, instruction: Optional[str] = None) -> Dict[str, Any]:
 		"""Extract structured details from plain text using Gemini Pro."""
 
-		instruction = (
+		final_prompt = instruction or (
 			"Parse the question below and respond only with JSON in the shape: {"
 			"'question': str, 'important_concepts': [str], 'hint': str}.\n\n"
 			f"Question: {prompt}"
 		)
-		response_text = await self._invoke(self._text_model, instruction, operation_name="extract_from_text")
+		response_text = await self._invoke(self._text_model, final_prompt, operation_name="extract_from_text")
 		return self._parse_json_payload(response_text)
 
 	async def generate_answer(self, prompt: str) -> str:

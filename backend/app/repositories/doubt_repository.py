@@ -20,7 +20,7 @@ class DoubtRepository:
     async def create(self, payload: DoubtCreate) -> DoubtRecord:
         """Insert a new doubt and return the stored record."""
 
-        self._logger.info("Creating doubt", extra={"student_id": payload.student_id})
+        self._logger.info("Creating doubt", extra={"user_id": payload.user_id})
         record = await self._service.insert(self._table, payload.model_dump(by_alias=True))
         return DoubtRecord.model_validate(record)
 

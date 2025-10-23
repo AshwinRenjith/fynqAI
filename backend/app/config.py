@@ -7,7 +7,7 @@ This ensures a single source of truth for runtime configuration across the app.
 from functools import lru_cache
 from typing import List
 
-from pydantic import AnyHttpUrl, BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +23,12 @@ class CorsSettings(BaseModel):
 class Settings(BaseSettings):
     """Global application settings loaded from environment variables."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        protected_namespaces=("settings_",),
+    )
 
     # Core application settings
     app_name: str = Field(default="fynqAI Backend", alias="APP_NAME")
@@ -31,22 +36,31 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", alias="ENVIRONMENT")
 
     # Secrets and security
-    secret_key: str = Field(alias="SECRET_KEY")
+    secret_key: str = Field(default="insecure-test-key", alias="SECRET_KEY")
 
     # Third-party integratons
-    gemini_api_key: str = Field(alias="GEMINI_API_KEY")
+    gemini_api_key: str = Field(default="test-gemini-key", alias="GEMINI_API_KEY")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    perplexity_api_key: str | None = Field(default=None, alias="PERPLEXITY_API_KEY")
 
     # Supabase configuration
-    supabase_url: AnyHttpUrl = Field(alias="SUPABASE_URL")
-    supabase_key: str = Field(alias="SUPABASE_KEY")
-    supabase_service_role_key: str = Field(alias="SUPABASE_SERVICE_ROLE_KEY")
+    supabase_url: AnyHttpUrl = Field(default="http://localhost:54321", alias="SUPABASE_URL")
+    supabase_key: str = Field(default="test-supabase-key", alias="SUPABASE_KEY")
+    supabase_service_role_key: str = Field(default="test-service-role-key", alias="SUPABASE_SERVICE_ROLE_KEY")
 
     # Database and cache
-    database_url: str = Field(alias="DATABASE_URL")
-    redis_url: str = Field(alias="REDIS_URL")
+    database_url: str = Field(default="postgresql://postgres:postgres@localhost:5432/postgres", alias="DATABASE_URL")
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
     # Vector embeddings
     embeddings_model_name: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", alias="EMBEDDINGS_MODEL_NAME")
+
+    # Model provider configuration
+    default_model_provider: str = Field(default="gemini", alias="DEFAULT_MODEL_PROVIDER")
+    model_provider_priority: List[str] = Field(
+        default_factory=lambda: ["gemini", "gpt5", "perplexity"],
+        alias="MODEL_PROVIDER_PRIORITY",
+    )
 
     # Subject classifier configuration
     subject_classifier_model_name: str = Field(default="raag-male/kcbert-base", alias="SUBJECT_CLASSIFIER_MODEL_NAME")
@@ -66,6 +80,13 @@ class Settings(BaseSettings):
         for origin in self.cors_origins:
             origins.append(AnyHttpUrl(origin))
         return CorsSettings(allow_origins=origins)
+
+    @field_validator("model_provider_priority", mode="before")
+    @classmethod
+    def _split_provider_priority(cls, value: List[str] | str) -> List[str]:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
 
 @lru_cache()

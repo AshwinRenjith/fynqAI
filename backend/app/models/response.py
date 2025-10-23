@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -44,7 +44,19 @@ class Response(ResponseBase):
 
     id: str = Field(..., description="Response identifier")
     created_at: datetime = Field(..., description="Creation timestamp")
-    metadata: Optional[Dict[str, str]] = Field(None, description="Additional metadata for analytics")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata for analytics")
+
+
+class ResponseCreate(ResponseBase):
+    """Payload used when persisting a generated response."""
+
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata to persist alongside the response")
+
+
+class ResponseRecord(Response):
+    """Alias for stored response rows returned from persistence."""
+
+    pass
 
 
 class AnswerGenerationRequest(BaseModel):
@@ -78,6 +90,8 @@ __all__ = [
     "AnswerGenerationResponse",
     "FeedbackRequest",
     "FeedbackResponse",
+    "ResponseCreate",
+    "ResponseRecord",
     "ReinforcementMCQ",
     "Response",
     "ResponseBase",

@@ -47,6 +47,12 @@ class Doubt(DoubtBase):
     created_at: datetime = Field(..., description="Creation timestamp")
 
 
+class DoubtRecord(Doubt):
+    """Alias for stored doubt rows returned from persistence."""
+
+    pass
+
+
 class DoubtUploadResponse(BaseModel):
     """Response payload returned to the frontend after upload."""
 
@@ -70,6 +76,7 @@ __all__ = [
     "Doubt",
     "DoubtBase",
     "DoubtCreate",
+    "DoubtRecord",
     "DoubtList",
     "DoubtUploadResponse",
     "InputType",

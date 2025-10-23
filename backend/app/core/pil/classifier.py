@@ -29,9 +29,9 @@ class SubjectClassifier:
     def __init__(self, model_name: Optional[str] = None, use_stub: Optional[bool] = None) -> None:
         settings = get_settings()
         self._logger = get_logger(__name__)
-    self._model_name = model_name or settings.subject_classifier_model_name
-    self._use_stub = use_stub if use_stub is not None else settings.subject_classifier_use_stub
-    self._pipeline: Optional[Any] = None
+        self._model_name = model_name or settings.subject_classifier_model_name
+        self._use_stub = use_stub if use_stub is not None else settings.subject_classifier_use_stub
+        self._pipeline: Optional[Any] = None
         self._keyword_map: Dict[str, Dict[str, Optional[str]]] = {
             "physics": {"subject": "Physics", "topic": "Mechanics"},
             "chemistry": {"subject": "Chemistry", "topic": "Physical Chemistry"},

@@ -24,7 +24,7 @@ class ResponseRepository:
         record = await self._service.insert(self._table, payload.model_dump(by_alias=True))
         return ResponseRecord.model_validate(record)
 
-    async def get_by_id(self, response_id: str) -> Optional<ResponseRecord]:
+    async def get_by_id(self, response_id: str) -> Optional[ResponseRecord]:
         """Fetch a response by primary key."""
 
         row = await self._service.fetch_one(self._table, id=response_id)

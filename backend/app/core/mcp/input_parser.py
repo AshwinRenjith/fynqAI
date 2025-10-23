@@ -7,7 +7,8 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
 from app.models.doubt import InputType
-from app.services.gemini_service import GeminiService, GeminiServiceError
+from app.core.mcp.gateway import ModelGateway, ModelGatewayError, get_model_gateway
+from app.core.mcp.providers import CapabilityNotSupportedError, ProviderNotAvailableError
 from app.utils.logger import bind_request_context, clear_request_context, get_logger
 
 
@@ -31,8 +32,14 @@ class ExtractionResult(BaseModel):
 class InputParser:
     """Parse user inputs (text, image, multimodal) into structured data."""
 
-    def __init__(self, gemini_service: Optional[GeminiService] = None) -> None:
-        self._gemini = gemini_service or GeminiService()
+    def __init__(
+        self,
+        gateway: Optional[ModelGateway] = None,
+        *,
+        preferred_provider: Optional[str] = None,
+    ) -> None:
+        self._gateway = gateway or get_model_gateway()
+        self._preferred_provider = preferred_provider
         self._logger = get_logger(__name__)
 
     async def parse_image(
@@ -46,10 +53,19 @@ class InputParser:
         try:
             if mime_type not in {"image/png", "image/jpeg", "image/jpg"}:
                 raise InputParserError("Unsupported image MIME type")
-            payload = await self._gemini.extract_from_image(image_bytes, mime_type=mime_type)
+            payload = await self._gateway.parse_image(
+                image_bytes,
+                mime_type=mime_type,
+                preferred=self._preferred_provider,
+            )
             self._logger.info("Parsed image input", extra={"mime_type": mime_type})
             return self._build_result(payload, input_type="image", original_text=None)
-        except GeminiServiceError as exc:
+        except (
+            ModelGatewayError,
+            ProviderNotAvailableError,
+            CapabilityNotSupportedError,
+            NotImplementedError,
+        ) as exc:
             raise InputParserError("Failed to parse image input") from exc
         finally:
             clear_request_context()
@@ -65,10 +81,18 @@ class InputParser:
             cleaned = text.strip()
             if not cleaned:
                 raise InputParserError("Text input cannot be empty")
-            payload = await self._gemini.extract_from_text(cleaned)
+            payload = await self._gateway.parse_text(
+                cleaned,
+                preferred=self._preferred_provider,
+            )
             self._logger.info("Parsed text input", extra={"length": len(cleaned)})
             return self._build_result(payload, input_type="text", original_text=cleaned)
-        except GeminiServiceError as exc:
+        except (
+            ModelGatewayError,
+            ProviderNotAvailableError,
+            CapabilityNotSupportedError,
+            NotImplementedError,
+        ) as exc:
             raise InputParserError("Failed to parse text input") from exc
         finally:
             clear_request_context()
@@ -89,12 +113,24 @@ class InputParser:
             if mime_type not in {"image/png", "image/jpeg", "image/jpg"}:
                 raise InputParserError("Unsupported image MIME type")
 
-            image_payload = await self._gemini.extract_from_image(image_bytes, mime_type=mime_type)
-            text_payload = await self._gemini.extract_from_text(cleaned)
+            image_payload = await self._gateway.parse_image(
+                image_bytes,
+                mime_type=mime_type,
+                preferred=self._preferred_provider,
+            )
+            text_payload = await self._gateway.parse_text(
+                cleaned,
+                preferred=self._preferred_provider,
+            )
             merged = self._merge_payloads(image_payload, text_payload)
             self._logger.info("Parsed multimodal input", extra={"mime_type": mime_type})
             return self._build_result(merged, input_type="multimodal", original_text=cleaned)
-        except GeminiServiceError as exc:
+        except (
+            ModelGatewayError,
+            ProviderNotAvailableError,
+            CapabilityNotSupportedError,
+            NotImplementedError,
+        ) as exc:
             raise InputParserError("Failed to parse multimodal input") from exc
         finally:
             clear_request_context()
