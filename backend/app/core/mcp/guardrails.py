@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional, Union
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -26,6 +26,9 @@ _PII_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     ("email", _EMAIL_PATTERN, "<email>"),
     ("phone", _PHONE_PATTERN, "<phone>"),
 )
+
+
+ProfileSignals = Union[str, Mapping[str, Any], BaseModel]
 
 
 class GuardrailViolation(RuntimeError):
@@ -116,9 +119,23 @@ class GuardrailManager:
         )
         return PromptBundle(body=template, expect_json=True)
 
-    def build_answer_prompt(self, prompt: str) -> PromptBundle:
+    def build_answer_prompt(self, prompt: str, profile: Optional[ProfileSignals] = None) -> PromptBundle:
         sanitized = self.scrub_input(prompt)
-        return PromptBundle(body=sanitized, expect_json=False)
+        if not profile:
+            return PromptBundle(body=sanitized, expect_json=False)
+
+        profile_text = self._render_profile_signals(profile)
+        if not profile_text:
+            return PromptBundle(body=sanitized, expect_json=False)
+
+        profile_sanitized = self.scrub_input(profile_text)
+        body = (
+            "Student profile signals (personalise the response accordingly):\n"
+            f"{profile_sanitized}\n\n"
+            "Student question:\n"
+            f"{sanitized}"
+        )
+        return PromptBundle(body=body, expect_json=False)
 
     def validate_extraction_payload(self, provider: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(payload, dict):
@@ -145,6 +162,45 @@ class GuardrailManager:
         if not cleaned:
             raise GuardrailViolation("Provider returned an empty answer")
         return cleaned
+
+    def _render_profile_signals(self, profile: ProfileSignals) -> str:
+        if isinstance(profile, BaseModel):
+            return self._render_profile_signals(profile.model_dump(exclude_none=True))
+        if isinstance(profile, str):
+            return profile.strip()
+        if isinstance(profile, Mapping):
+            lines: list[str] = []
+            for key, value in profile.items():
+                rendered = self._stringify_profile_value(value)
+                if not rendered:
+                    continue
+                label = key.replace("_", " ").strip().capitalize()
+                lines.append(f"{label}: {rendered}")
+            return "\n".join(lines).strip()
+        return str(profile).strip()
+
+    def _stringify_profile_value(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, BaseModel):
+            return self._stringify_profile_value(value.model_dump(exclude_none=True))
+        if isinstance(value, Mapping):
+            parts = []
+            for key, inner in value.items():
+                rendered = self._stringify_profile_value(inner)
+                if rendered:
+                    parts.append(f"{key}={rendered}")
+            return ", ".join(parts)
+        if isinstance(value, (list, tuple, set)):
+            seen: list[str] = []
+            for item in value:
+                rendered = self._stringify_profile_value(item)
+                if rendered and rendered not in seen:
+                    seen.append(rendered)
+            return ", ".join(seen)
+        return str(value)
 
     def normalize_json_response(self, provider: str, response: str) -> Dict[str, Any]:
         try:

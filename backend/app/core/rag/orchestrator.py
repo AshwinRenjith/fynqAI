@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 from pydantic import ValidationError
 
 from app.core.mcp.gateway import ModelGateway, ModelGatewayError, get_model_gateway
+from app.core.mcp.guardrails import ProfileSignals
 from app.core.mcp.providers import CapabilityNotSupportedError, ProviderNotAvailableError
 from app.core.rag.embeddings import EmbeddingError, EmbeddingService, get_embedding_service
 from app.core.rag.retriever import RetrievalError, VectorRetriever
@@ -50,6 +51,7 @@ class RAGOrchestrator:
         *,
         force_refresh: bool = False,
         extra_contexts: Optional[Sequence[Dict[str, Any]]] = None,
+        profile_signals: Optional[ProfileSignals] = None,
     ) -> ResponseCreate:
         """Return an answer for the supplied doubt, optionally using cached output."""
 
@@ -68,6 +70,7 @@ class RAGOrchestrator:
             answer_text = await self._gateway.generate_answer(
                 prompt,
                 preferred=self._preferred_provider,
+                profile=profile_signals,
             )
         except (
             ModelGatewayError,

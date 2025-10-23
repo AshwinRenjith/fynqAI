@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
 from app.config import get_settings
 from app.utils.logger import get_logger
 
-from .guardrails import GuardrailViolation, PromptBundle, get_guardrail_manager
+from .guardrails import GuardrailViolation, ProfileSignals, PromptBundle, get_guardrail_manager
 from .providers.base import (
     CapabilityNotSupportedError,
     LLMProvider,
@@ -96,8 +96,14 @@ class ModelGateway:
             post_process=self._guardrails.validate_extraction_payload,
         )
 
-    async def generate_answer(self, prompt: str, *, preferred: Optional[str] = None) -> str:
-        bundle = self._guardrails.build_answer_prompt(prompt)
+    async def generate_answer(
+        self,
+        prompt: str,
+        *,
+        preferred: Optional[str] = None,
+        profile: Optional[ProfileSignals] = None,
+    ) -> str:
+        bundle = self._guardrails.build_answer_prompt(prompt, profile=profile)
         return await self._execute_with_fallback(
             capability=ProviderCapability.TEXT_GENERATION,
             preferred=preferred,

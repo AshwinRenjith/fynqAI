@@ -21,10 +21,12 @@ class StubProfileRepository:
     async def upsert_profile(self, payload):
         data = dict(payload)
         record_id = data.pop("id", None) or data["user_id"]
+        created_at = data.pop("created_at", None) or datetime.now(timezone.utc)
+        data.pop("updated_at", None)
         record = StudentProfileRecord(
             **data,
             id=record_id,
-            created_at=data.get("created_at") or datetime.now(timezone.utc),
+            created_at=created_at,
             updated_at=datetime.now(timezone.utc),
         )
         self.store[record.user_id] = record

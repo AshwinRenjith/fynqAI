@@ -144,6 +144,35 @@ async def test_generate_answer_falls_back_when_first_provider_returns_empty():
     assert "Explain" in (success_provider.last_prompt or "")
 
 
+@pytest.mark.asyncio
+async def test_generate_answer_includes_profile_signals_in_prompt():
+    provider = _SuccessfulAnswerProvider()
+
+    gateway = ModelGateway(
+        providers={"success": provider},
+        default_provider="success",
+        priority=("success",),
+    )
+
+    profile = {
+        "weaknesses": ["algebra proofs"],
+        "preferred_styles": {"visual": 4},
+        "notes": "Reach me at student@example.com",
+    }
+
+    answer = await gateway.generate_answer(
+        "Explain the derivative of sin(x)",
+        profile=profile,
+    )
+
+    assert answer == "A detailed explanation follows."
+    prompt = provider.last_prompt or ""
+    assert "algebra proofs" in prompt
+    assert "preferred styles" in prompt.lower()
+    assert "<email>" in prompt
+    assert "Student question" in prompt
+
+
 def test_guardrail_scrub_masks_multiple_pii(caplog):
     manager = GuardrailManager()
     sensitive = "Contact: user@example.com, Phone: +1 202-555-0199, SSN 123-45-6789, PAN ABCDE1234F"
