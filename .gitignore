@@ -107,3 +107,7 @@ lerna-debug.log*
 # Temporary folders
 tmp/
 temp/
+.venv/
+__pycache__/
+*.pyc
+.env
