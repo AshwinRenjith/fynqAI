@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
-from app.models.student_profile import StudentProfileCreate, StudentProfileRecord
+from app.models.student_profile import (
+    StudentDashboardView,
+    StudentProfileCreate,
+    StudentProfileRecord,
+    SubjectInsight,
+)
 from app.repositories.student_profile_repository import (
     StudentProfileRepository,
     StudentProfileRepositoryError,
@@ -25,11 +30,30 @@ class StudentProfileService:
         self._logger = get_logger(__name__)
 
     async def get_or_create_profile(self, user_id: str) -> StudentProfileRecord:
-        existing = await self._repository.get_by_user_id(user_id)
-        if existing:
-            return existing
+        try:
+            existing = await self._repository.get_by_user_id(user_id)
+            if existing:
+                return existing
+        except Exception as exc:  # pragma: no cover - local fallback path
+            self._logger.warning(
+                "Falling back to in-memory profile store",
+                extra={"user_id": user_id, "error": str(exc)},
+            )
+            return self._fallback_profile(user_id)
+
         baseline = StudentProfileCreate(user_id=user_id)
-        return await self._repository.upsert_profile(baseline)
+        try:
+            return await self._repository.upsert_profile(baseline)
+        except Exception as exc:  # pragma: no cover - local fallback path
+            self._logger.warning(
+                "Upsert failed, returning fallback profile",
+                extra={"user_id": user_id, "error": str(exc)},
+            )
+            return self._fallback_profile(user_id)
+
+    async def get_dashboard_view(self, user_id: str) -> StudentDashboardView:
+        profile = await self.get_or_create_profile(user_id)
+        return self._build_dashboard_view(profile)
 
     async def record_learning_event(
         self,
@@ -118,3 +142,78 @@ class StudentProfileService:
         new_score = max(0.0, min(1.0, new_score))
         blended = (1 - weight) * current + weight * new_score
         return round(blended, 4)
+
+    def _build_dashboard_view(self, profile: StudentProfileRecord) -> StudentDashboardView:
+        dominant_style = None
+        if profile.preferred_styles:
+            dominant_style = max(profile.preferred_styles.items(), key=lambda item: item[1])[0]
+
+        subject_focus: List[SubjectInsight] = []
+        for subject, score in sorted(
+            profile.subject_proficiency.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:5]:
+            subject_focus.append(SubjectInsight(subject=subject, proficiency=round(float(score), 3)))
+
+        streak_days = self._compute_active_streak(profile.last_interaction_at)
+        alerts = self._build_alerts(profile, streak_days)
+
+        return StudentDashboardView(
+            user_id=profile.user_id,
+            strengths=list(profile.strengths),
+            weaknesses=list(profile.weaknesses),
+            preferred_styles=dict(profile.preferred_styles),
+            dominant_style=dominant_style,
+            subject_focus=subject_focus,
+            recent_topics=list(profile.recent_topics),
+            active_streak_days=streak_days,
+            last_interaction_at=profile.last_interaction_at,
+            alerts=alerts,
+        )
+
+    def _compute_active_streak(self, last_interaction: Optional[datetime]) -> int:
+        if not last_interaction:
+            return 0
+        now = datetime.now(timezone.utc)
+        delta = now.date() - last_interaction.date()
+        if delta.days < 0:
+            return 0
+        if delta.days == 0:
+            return 1
+        if delta.days == 1:
+            return 2
+        return 0
+
+    def _build_alerts(self, profile: StudentProfileRecord, streak_days: int) -> List[str]:
+        alerts: List[str] = []
+        if profile.weaknesses:
+            weakest = profile.weaknesses[0]
+            alerts.append(f"Let's revisit {weakest} with a focused practice set.")
+        if streak_days == 0:
+            alerts.append("It's been a while—resume a short study session to regain momentum.")
+        elif streak_days == 1:
+            alerts.append("Great job studying today! Come back tomorrow to extend your streak.")
+        elif streak_days >= 2:
+            alerts.append(f"You're on a {streak_days}-day streak—keep it going!")
+        if profile.preferred_styles:
+            style = max(profile.preferred_styles.items(), key=lambda item: item[1])[0]
+            alerts.append(f"Content will lean into your preferred {style.replace('_', ' ')} explanations.")
+        return alerts[:3]
+
+    def _fallback_profile(self, user_id: str) -> StudentProfileRecord:
+        now = datetime.now(timezone.utc)
+        return StudentProfileRecord(
+            user_id=user_id,
+            strengths=[],
+            weaknesses=[],
+            subject_proficiency={},
+            topic_proficiency={},
+            preferred_styles={},
+            recent_topics=[],
+            last_interaction_at=None,
+            metadata={},
+            id=user_id,
+            created_at=now,
+            updated_at=now,
+        )

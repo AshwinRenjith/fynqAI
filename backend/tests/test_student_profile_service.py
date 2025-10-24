@@ -93,3 +93,33 @@ async def test_get_or_create_profile_returns_existing():
     assert new_profile.user_id == "user-99"
     assert new_profile.subject_proficiency == {}
     assert new_profile.recent_topics == []
+
+
+@pytest.mark.asyncio
+async def test_dashboard_view_includes_personalised_alerts():
+    repository = StubProfileRepository()
+    profile = StudentProfileRecord(
+        user_id="athena",
+        strengths=["Geometry"],
+        weaknesses=["Algebra proofs"],
+        subject_proficiency={"Geometry": 0.88, "Algebra": 0.45},
+        topic_proficiency={},
+        preferred_styles={"visual": 5, "mnemonic": 1},
+        recent_topics=["Euclidean proofs", "Quadratic equations"],
+        last_interaction_at=datetime.now(timezone.utc),
+        metadata={},
+        id="athena",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    repository.store["athena"] = profile
+
+    service = StudentProfileService(repository=repository)
+
+    dashboard = await service.get_dashboard_view("athena")
+
+    assert dashboard.user_id == "athena"
+    assert dashboard.dominant_style == "visual"
+    assert dashboard.subject_focus[0].subject == "Geometry"
+    assert dashboard.active_streak_days >= 1
+    assert any("streak" in alert.lower() for alert in dashboard.alerts)

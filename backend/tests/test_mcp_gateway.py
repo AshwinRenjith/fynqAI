@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.core.mcp.gateway import ModelGateway, ModelGatewayError
@@ -104,6 +106,33 @@ class _SuccessfulAnswerProvider(_BaseStubProvider):
         return "A detailed explanation follows."
 
 
+class _SuccessfulFollowUpProvider(_BaseStubProvider):
+    def __init__(self) -> None:
+        super().__init__("success-follow-up", (ProviderCapability.TEXT_GENERATION,))
+        self.calls = 0
+        self.last_prompt: str | None = None
+
+    async def generate_answer(self, prompt: str, *, instructions: str | None = None):
+        self.calls += 1
+        self.last_prompt = prompt
+        payload = {
+            "hints": ["Sketch a unit circle to visualise the sine wave."],
+            "quiz": [
+                {
+                    "question": "What is the derivative of sin(x)?",
+                    "options": ["cos(x)", "-sin(x)"],
+                    "correct_option": 0,
+                    "explanation": "Differentiate sin(x) to obtain cos(x).",
+                    "difficulty": "easy",
+                }
+            ],
+            "revision_plan": ["Review trigonometric derivatives from notes."],
+            "recommended_topics": ["Trigonometric identities"],
+            "encouragement": "You're improving—keep practising with visuals!",
+        }
+        return json.dumps(payload)
+
+
 @pytest.mark.asyncio
 async def test_parse_text_falls_back_when_first_provider_violates_guardrails():
     fail_provider = _FailingJsonProvider()
@@ -171,6 +200,33 @@ async def test_generate_answer_includes_profile_signals_in_prompt():
     assert "preferred styles" in prompt.lower()
     assert "<email>" in prompt
     assert "Student question" in prompt
+
+
+@pytest.mark.asyncio
+async def test_generate_follow_up_returns_valid_plan():
+    provider = _SuccessfulFollowUpProvider()
+
+    gateway = ModelGateway(
+        providers={"success": provider},
+        default_provider="success",
+        priority=("success",),
+    )
+
+    plan = await gateway.generate_follow_up(
+        question="Explain why sin(x) is odd",
+        answer_summary="The graph of sin(x) is symmetric about the origin.",
+        subject="Mathematics",
+        profile={
+            "weaknesses": ["algebra proofs"],
+            "preferred_styles": {"visual": 4},
+            "contact": "student@example.com",
+        },
+    )
+
+    assert plan["hints"], "Expected hints in follow-up plan"
+    assert plan["quiz"][0]["correct_option"] == 0
+    assert provider.calls == 1
+    assert "<email>" in (provider.last_prompt or "")
 
 
 def test_guardrail_scrub_masks_multiple_pii(caplog):

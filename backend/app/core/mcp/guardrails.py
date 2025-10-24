@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -56,6 +56,26 @@ class ExtractionPayloadModel(BaseModel):
         if self.text and self.text.strip():
             return self.text.strip()
         return ""
+
+
+class FollowUpQuizItemModel(BaseModel):
+    """Schema validating quiz follow-up items."""
+
+    question: str
+    options: List[str] = Field(default_factory=list)
+    correct_option: int = Field(..., ge=0)
+    explanation: Optional[str] = None
+    difficulty: Optional[str] = None
+
+
+class FollowUpPlanModel(BaseModel):
+    """Schema validating personalised follow-up plans."""
+
+    hints: List[str] = Field(default_factory=list)
+    quiz: List[FollowUpQuizItemModel] = Field(default_factory=list)
+    revision_plan: List[str] = Field(default_factory=list)
+    recommended_topics: List[str] = Field(default_factory=list)
+    encouragement: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +157,38 @@ class GuardrailManager:
         )
         return PromptBundle(body=body, expect_json=False)
 
+    def build_follow_up_prompt(
+        self,
+        *,
+        question: str,
+        answer_summary: str,
+        subject: Optional[str],
+        profile: Optional[ProfileSignals] = None,
+    ) -> PromptBundle:
+        sanitized_question = self.scrub_input(question)
+        summary = self.scrub_input(self._truncate_text(answer_summary)) or "Summary unavailable."
+        subject_label = subject or "General"
+
+        profile_block = ""
+        if profile:
+            rendered = self._render_profile_signals(profile)
+            if rendered:
+                profile_block = "\n\nStudent profile signals:\n" + self.scrub_input(rendered)
+
+        body = (
+            "You are an adaptive tutor designing differentiated follow-up support. "
+            "Respond ONLY with JSON containing the keys: hints (array of up to 3 short tips), "
+            "quiz (array of objects with fields question, options, correct_option, explanation, difficulty), "
+            "revision_plan (array describing spaced revision actions), recommended_topics (array of topics to revisit), "
+            "and encouragement (short motivational message)."
+            " Ensure options arrays contain between 2 and 5 concise choices and correct_option is the 0-indexed position of the answer."
+            f"\n\nSubject: {subject_label}"
+            f"\nStudent question: {sanitized_question}"
+            f"\nAnswer summary: {summary}"
+            f"{profile_block}"
+        )
+        return PromptBundle(body=body, expect_json=True)
+
     def validate_extraction_payload(self, provider: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(payload, dict):
             self._logger.warning("Provider returned non-dict payload", extra={"provider": provider})
@@ -162,6 +214,22 @@ class GuardrailManager:
         if not cleaned:
             raise GuardrailViolation("Provider returned an empty answer")
         return cleaned
+
+    def validate_follow_up_payload(self, provider: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            self._logger.warning(
+                "Provider returned non-dict follow-up payload",
+                extra={"provider": provider},
+            )
+            raise GuardrailViolation("Follow-up payload must be a JSON object")
+
+        try:
+            model = FollowUpPlanModel.model_validate(payload)
+        except ValidationError as exc:
+            raise GuardrailViolation(f"Follow-up payload failed schema validation: {exc}") from exc
+
+        data = model.model_dump(exclude_none=True)
+        return data
 
     def _render_profile_signals(self, profile: ProfileSignals) -> str:
         if isinstance(profile, BaseModel):
@@ -201,6 +269,12 @@ class GuardrailManager:
                     seen.append(rendered)
             return ", ".join(seen)
         return str(value)
+
+    def _truncate_text(self, text: str, *, max_length: int = 600) -> str:
+        cleaned = text.strip()
+        if len(cleaned) <= max_length:
+            return cleaned
+        return cleaned[: max_length - 3] + "..."
 
     def normalize_json_response(self, provider: str, response: str) -> Dict[str, Any]:
         try:

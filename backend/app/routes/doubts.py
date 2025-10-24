@@ -16,7 +16,7 @@ from app.repositories.doubt_repository import DoubtRepository
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
-router = APIRouter(tags=["doubts"])
+router = APIRouter(prefix="/doubts", tags=["doubts"])
 
 
 def get_input_parser() -> InputParser:

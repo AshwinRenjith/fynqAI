@@ -70,7 +70,14 @@ class Settings(BaseSettings):
     rate_limit: str = Field(default="60/minute", alias="RATE_LIMIT")
 
     # CORS configuration
-    cors_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000"], alias="CORS_ORIGINS")
+    cors_origins: List[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:8080",
+        ],
+        alias="CORS_ORIGINS",
+    )
 
     @property
     def cors(self) -> CorsSettings:

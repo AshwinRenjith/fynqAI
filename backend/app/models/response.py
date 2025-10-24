@@ -69,6 +69,10 @@ class AnswerGenerationResponse(ResponseBase):
     """Response payload after running the answer generation pipeline."""
 
     response_id: str = Field(..., description="Identifier of the persisted response")
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional analytics data, including personalised follow-up plans",
+    )
 
 
 class FeedbackRequest(BaseModel):

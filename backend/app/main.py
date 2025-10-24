@@ -8,6 +8,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routes.answers import router as answers_router
 from app.routes.doubts import router as doubts_router
+from app.routes.student_profile import router as student_profile_router
 from app.utils.logger import configure_logging, get_logger
 
 
@@ -28,6 +29,7 @@ app.add_middleware(
 
 app.include_router(doubts_router)
 app.include_router(answers_router)
+app.include_router(student_profile_router)
 
 
 @app.on_event("startup")

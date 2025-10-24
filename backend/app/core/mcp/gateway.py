@@ -112,6 +112,29 @@ class ModelGateway:
             post_process=self._guardrails.validate_answer,
         )
 
+    async def generate_follow_up(
+        self,
+        *,
+        question: str,
+        answer_summary: str,
+        subject: Optional[str],
+        preferred: Optional[str] = None,
+        profile: Optional[ProfileSignals] = None,
+    ) -> Dict[str, Any]:
+        bundle = self._guardrails.build_follow_up_prompt(
+            question=question,
+            answer_summary=answer_summary,
+            subject=subject,
+            profile=profile,
+        )
+        return await self._execute_with_fallback(
+            capability=ProviderCapability.TEXT_GENERATION,
+            preferred=preferred,
+            bundle=bundle,
+            call=lambda provider: provider.generate_answer(bundle.body),
+            post_process=self._guardrails.validate_follow_up_payload,
+        )
+
     async def _execute_with_fallback(
         self,
         *,

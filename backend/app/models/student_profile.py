@@ -66,3 +66,25 @@ class StudentProfileRecord(StudentProfileBase):
 
     class Config:
         from_attributes = True
+
+
+class SubjectInsight(BaseModel):
+    """Subject-level proficiency insight for dashboard visualisation."""
+
+    subject: str
+    proficiency: float
+
+
+class StudentDashboardView(BaseModel):
+    """Aggregated dashboard representation for a student's progress."""
+
+    user_id: str
+    strengths: List[str]
+    weaknesses: List[str]
+    preferred_styles: Dict[str, int]
+    dominant_style: Optional[str]
+    subject_focus: List[SubjectInsight]
+    recent_topics: List[str]
+    active_streak_days: int
+    last_interaction_at: Optional[datetime]
+    alerts: List[str]

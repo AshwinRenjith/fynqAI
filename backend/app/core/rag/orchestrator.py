@@ -62,7 +62,14 @@ class RAGOrchestrator:
                 self._logger.info("Returning cached RAG answer", extra={"doubt_id": doubt.id})
                 return cached
 
-        contexts = list(extra_contexts) if extra_contexts else await self._retrieve_contexts(doubt)
+        try:
+            contexts = list(extra_contexts) if extra_contexts else await self._retrieve_contexts(doubt)
+        except RAGOrchestrationError as exc:
+            self._logger.warning(
+                "Context retrieval failed, continuing without external references",
+                extra={"doubt_id": doubt.id, "error": str(exc)},
+            )
+            contexts = []
         ranked_contexts = self._rank_contexts(contexts)
         prompt = self._build_prompt(doubt, ranked_contexts)
 
@@ -78,14 +85,44 @@ class RAGOrchestrator:
             CapabilityNotSupportedError,
             NotImplementedError,
         ) as exc:
-            self._logger.exception("Model gateway answer generation failed", extra={"doubt_id": doubt.id})
-            raise RAGOrchestrationError("Failed to generate answer") from exc
+            self._logger.warning(
+                "Model gateway failed, using fallback answer",
+                extra={"doubt_id": doubt.id, "error": str(exc)},
+            )
+            answer_text = self._fallback_answer(doubt)
+
+        follow_up_plan: Optional[Dict[str, Any]] = None
+        try:
+            follow_up_plan = await self._gateway.generate_follow_up(
+                question=doubt.doubt_text,
+                answer_summary=self._summarize_answer(answer_text),
+                subject=doubt.subject,
+                preferred=self._preferred_provider,
+                profile=profile_signals,
+            )
+        except (
+            ModelGatewayError,
+            ProviderNotAvailableError,
+            CapabilityNotSupportedError,
+            NotImplementedError,
+        ) as exc:
+            self._logger.warning(
+                "Follow-up generation failed",
+                extra={"doubt_id": doubt.id, "error": str(exc)},
+            )
+        except Exception:  # pragma: no cover - external provider errors
+            self._logger.exception(
+                "Unexpected error during follow-up generation",
+                extra={"doubt_id": doubt.id},
+            )
 
         metadata: Dict[str, Any] = {
             "context_ids": [self._context_identifier(ctx) for ctx in ranked_contexts],
             "context_count": len(ranked_contexts),
             "subject": doubt.subject,
         }
+        if follow_up_plan:
+            metadata["follow_up_plan"] = follow_up_plan
 
         response = ResponseCreate(
             doubt_id=doubt.id,
@@ -209,6 +246,23 @@ class RAGOrchestrator:
             f"{context_section}\n\n"
             "Compose a thorough answer, highlight key formulas, and suggest the next learning step."
         )
+
+    def _fallback_answer(self, doubt: DoubtRecord) -> str:
+        base_question = doubt.doubt_text or "the learner's question"
+        subject = doubt.subject or "the topic"
+        return (
+            f"I don't have access to the full tutoring models right now, but here's a quick summary to get you started.\n\n"
+            f"**Question:** {base_question}\n"
+            f"**Subject:** {subject}\n\n"
+            "Try breaking the problem into smaller steps, review the related theory, and practise a similar example. "
+            "Once the full assistant is online, you can regenerate for a richer walkthrough."
+        )
+
+    def _summarize_answer(self, answer_text: str, *, max_length: int = 800) -> str:
+        cleaned = (answer_text or "").strip()
+        if len(cleaned) <= max_length:
+            return cleaned
+        return cleaned[: max_length - 3] + "..."
 
     def _context_snippet(self, context: Dict[str, Any]) -> str:
         for key in ("content", "text", "chunk", "body", "summary"):

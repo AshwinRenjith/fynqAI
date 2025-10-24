@@ -42,8 +42,15 @@ class VectorRetriever:
             "Running pgvector retrieval",
             extra={"rpc": self._rpc_fn, "limit": limit, "has_filters": bool(filters)},
         )
-        response = await self._supabase.client.rpc(self._rpc_fn, payload).execute()
-        data: Iterable[Dict[str, Any]] = response.data or []
-        results = list(data)
-        self._logger.info("Retrieved contexts", extra={"count": len(results)})
-        return results
+        try:
+            response = await self._supabase.rpc(self._rpc_fn, payload)
+            data: Iterable[Dict[str, Any]] = getattr(response, "data", None) or []
+            results = list(data)
+            self._logger.info("Retrieved contexts", extra={"count": len(results)})
+            return results
+        except Exception as exc:  # pragma: no cover - external RPC failure
+            self._logger.warning(
+                "Vector retrieval RPC failed",
+                extra={"rpc": self._rpc_fn, "error": str(exc)},
+            )
+            raise RetrievalError("Vector retrieval RPC failed") from exc

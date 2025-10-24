@@ -62,4 +62,5 @@ async def generate_answer_for_doubt(
         reinforcement_mcq=record.reinforcement_mcq,
         confidence_score=record.confidence_score,
         estimated_time=record.estimated_time,
+        metadata=record.metadata,
     )

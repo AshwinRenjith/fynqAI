@@ -76,11 +76,12 @@ class InputParser:
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> ExtractionResult:
+        cleaned = text.strip()
+        if not cleaned:
+            raise InputParserError("Text input cannot be empty")
+
         self._set_context(context)
         try:
-            cleaned = text.strip()
-            if not cleaned:
-                raise InputParserError("Text input cannot be empty")
             payload = await self._gateway.parse_text(
                 cleaned,
                 preferred=self._preferred_provider,
@@ -93,7 +94,12 @@ class InputParser:
             CapabilityNotSupportedError,
             NotImplementedError,
         ) as exc:
-            raise InputParserError("Failed to parse text input") from exc
+            self._logger.warning(
+                "Falling back to local text parser",
+                extra={"error": str(exc)},
+            )
+            fallback = self._fallback_payload(cleaned)
+            return self._build_result(fallback, input_type="text", original_text=cleaned)
         finally:
             clear_request_context()
 
@@ -134,6 +140,17 @@ class InputParser:
             raise InputParserError("Failed to parse multimodal input") from exc
         finally:
             clear_request_context()
+
+    def _fallback_payload(self, text: str) -> Dict[str, Any]:
+        truncated = text[:500].strip()
+        return {
+            "question": truncated,
+            "confidence": 0.3,
+            "subject": None,
+            "topic": None,
+            "subtopic": None,
+            "entities": None,
+        }
 
     def _build_result(
         self,
